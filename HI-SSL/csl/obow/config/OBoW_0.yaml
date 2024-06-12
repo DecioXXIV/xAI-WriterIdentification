@@ -1,0 +1,89 @@
+model:
+  alpha: 0.99
+  alpha_cosine: true
+  feature_extractor_arch: resnet18
+  feature_extractor_opts:
+    global_pooling: true
+  bow_levels:
+  - block3
+  - block4
+  bow_extractor_opts:
+    inv_delta: 15
+    num_words: 8192
+  bow_predictor_opts:
+    kappa: 8
+  num_classes: 24
+optim:
+  optim_type: sgd
+  momentum: 0.9
+  weight_decay: 0.0001
+  nesterov: false
+  num_epochs: 100
+  lr: 0.03
+  end_lr: 3.0e-05
+  lr_schedule_type: cos_warmup
+  warmup_epochs: 5
+  permanent: 100
+  best_metric_name: null
+data:
+  dataset_name: Optional
+  batch_size: 64
+  epoch_size: null
+  subset: null
+  cjitter:
+  - - 0.4
+    - 1.3
+  - 0.6
+  - 0.6
+  - 0.4
+  cjitter_p: 1
+  randaffine:
+  - 10
+  - - 0.2
+    - 0.2
+  - - 1.3
+    - 1.4
+  - 1
+  randpersp:
+  - 0.1
+  - 0.2
+  gray_p: 0.2
+  gaussian_blur:
+  - 3
+  - - 0.1
+    - 0.5
+  gaussian_blur_p: 0.5
+  target_img_size: 380
+  num_img_crops: 2
+  image_crop_size: 270
+  image_crop_range:
+  - 0.08
+  - 0.6
+  num_img_patches: 5
+  img_patch_preresize: 256
+  img_patch_preresize_range:
+  - 0.6
+  - 1.0
+  img_patch_size: 150
+  img_patch_jitter: 24
+  only_patches: false
+  rand_eras:
+  - 0.5
+  - - 0.02
+    - 0.33
+  - - 0.3
+    - 3.3
+  - 0
+  rand_eras_patch:
+  - 0.7
+  - - 0.02
+    - 0.1
+  - - 0.3
+    - 3.3
+  - 0
+  invert_p: 0.05
+  overlap: false
+  overlap_area_size: 256
+  mean_gn: 0.0
+  std_gn: 0.004
+  gn_p: 0.0
