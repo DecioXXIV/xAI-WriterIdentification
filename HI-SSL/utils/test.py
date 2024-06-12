@@ -186,6 +186,11 @@ class feature_analysis():
             index=False, 
             sep=";", 
             header = True)
+        
+        embeddings_to_save.to_csv(self.data_path + os.sep + 'Test_' + self.test_ID + '_' + self.test_type + '_embeddings_' + self.phase + '.tsv',
+            index=False,
+            sep="\t",
+            header=False)
 
         labels = list(df['Nome'].values)
         with open(self.data_path + os.sep + 'Test_' + self.test_ID + '_' + self.test_type + '_metadata_' + self.phase + '.tsv', "w") as f:
