@@ -162,3 +162,4 @@ cython_debug/
 #.idea/
 
 datasets/*
+HI-EXP/classifier_NN/tests/output/*
