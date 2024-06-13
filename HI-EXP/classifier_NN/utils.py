@@ -430,7 +430,7 @@ class Trainer():
 
 # Evaluation
 
-def produce_classification_reports(dl, device, model,output_dir, test_id):    
+def produce_classification_reports(dl, device, model, output_dir, test_id):    
     dataset = dl.generate_dataset()
     _, set_ = dl.load_data()
     
@@ -487,7 +487,7 @@ def produce_classification_reports(dl, device, model,output_dir, test_id):
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label\naccuracy = {:0.4f}; misclass = {:0.4f}'.format(accuracy, misclass))
-    plt.savefig(f'{output_dir}Test_{test_id}_confusion_matrix_test.png')
+    plt.savefig(f'{output_dir}/Test_{test_id}_confusion_matrix_test.png')
     
-    with open(f'{output_dir}Test_{test_id}_classification-report_test.txt', 'w') as f:
+    with open(f'{output_dir}/Test_{test_id}_classification-report_test.txt', 'w') as f:
         f.write(classification_report(labels, preds, target_names=target_names))
