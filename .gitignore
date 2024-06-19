@@ -163,3 +163,5 @@ cython_debug/
 
 datasets/*
 HI-EXP/classifier_NN/tests/output/*
+HI-EXP/Lime/explanations/*
+HI-EXP/Lime/data/*
