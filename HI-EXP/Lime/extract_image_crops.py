@@ -28,10 +28,10 @@ def extract_image_crops(
     except:
         print(f"'{file_name}' not found in './data' directory.")
 
-    try:    
-        mask_img = Image.open(f"./data/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")
+    try:
+        mask_img = Image.open(f"./explanations/crop_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")    
     except:
-        print(f"'{file_name}_mask_blocks_{block_width}x{block_height}.png' not found in './data/{file_name}' directory.")
+        print(f"'{file_name}_mask_blocks_{block_width}x{block_height}.png' not found in './explanations/crop_level/{file_name}' directory.")
 
     crop_size, overlap = crop_size, overlap
 
@@ -42,18 +42,18 @@ def extract_image_crops(
 
     list_images, list_masks = list(), list()
 
-    if not os.path.exists(f"./data/{file_name}/crops"):
-        os.mkdir(f"./data/{file_name}/crops")
-
+    if not os.path.exists(f"./explanations/crop_level/{file_name}/crops"):
+        os.mkdir(f"./explanations/crop_level/{file_name}/crops")
+    
     for i in range(NR):
         for j in range(NC):
             x0, y0, x1, y1 = GD[f'{i}_{j}']
             
             img_crop = page_img.crop((x0, y0, x1, y1))
-            img_crop.save(f"./data/{file_name}/crops/{file_name}_{crop_size}_{overlap}_{i}_{j}.jpg")
+            img_crop.save(f"./explanations/crop_level/{file_name}/crops/{file_name}_{crop_size}_{overlap}_{i}_{j}.jpg")
 
             mask_crop = mask_img.crop((x0, y0, x1, y1))
-            mask_crop.save(f"./data/{file_name}/crops/{file_name}_mask_blocks_{block_width}x{block_height}_{crop_size}_{overlap}_{i}_{j}.png")
+            mask_crop.save(f"./explanations/crop_level/{file_name}/crops/{file_name}_mask_blocks_{block_width}x{block_height}_{crop_size}_{overlap}_{i}_{j}.png")
 
             img_array_copy = deepcopy(img_array)
             mask_array_copy = deepcopy(mask_array)
@@ -65,4 +65,4 @@ def extract_image_crops(
             list_masks.append(mask_array_copy[:, :, ::-1])
     
     # Saves a GIF file which describes the cropping process
-    imageio.mimsave(f'./data/{file_name}/crops/{file_name}_crops.gif', list_images, duration=0.8)
+    imageio.mimsave(f'./explanations/crop_level/{file_name}/{file_name}_crops.gif', list_images, duration=0.8)
