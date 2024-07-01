@@ -318,15 +318,14 @@ def set_optimizer(optim_type, lr_, model):
             momentum = 0.9,
             nesterov = False,
             weight_decay = 0.0001)
-    elif optim_type == 'adamw':
-        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+    elif optim_type == 'nesterov':  # Aggiunto successivamente
+        optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
             lr = lr_,
-            betas = [0.9, 0.999],
+            momentum = 0.9,
+            nesterov = True,
             weight_decay = 0.0001)
-    
-    ### AdamW è stato aggiunto successivamente -> speed-up del Training e riduzione dell'Overfitting
-    elif optim_type == 'adamw':
-          optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+    elif optim_type == 'adamw':     # Aggiunto successivamente: Speed-Up del Training e riduzione Overfitting
+        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
             lr = lr_,
             betas = [0.9, 0.999],
             weight_decay = 0.0001)
@@ -439,7 +438,7 @@ def produce_classification_reports(dl, device, model, output_dir, test_id):
     target_names = list(dataset.class_to_idx.keys())
     c_to_idx = dataset.class_to_idx
     idx_to_c = {c_to_idx[k]: k for k in list(c_to_idx.keys())}
-    for data, target in set_:
+    for data, target in tqdm(set_):
         data = data.to(device)
         labels += list(target.numpy())
         target = target.to(device)
