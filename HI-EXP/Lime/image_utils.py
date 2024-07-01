@@ -17,14 +17,17 @@ def apply_transforms_crops(img, mask, mean, std):
         T.Normalize(mean, std)
         ])
     
+    # img_transforms: "img" is a PIL.Image, with values in [0, 255]
+        # 1. ToTensor() converts "img" from PIL.Image to torch.Tensor, with values in [0, 1]
+        # 2. Normalize(mean, std) normalizes "img" channel-wise
+    
+    img = img_transforms(img)
     mask_to_tensor = T.ToTensor()
 
-    img = img_transforms(img)
-    
     # Step 1
     mask = mask_to_tensor(mask)*255
-    
     seg_ids = sorted(mask.unique().tolist())
+    
     # Step 2
     feature_mask = mask.clone()
     for i, seg_id in enumerate(seg_ids):
@@ -88,9 +91,11 @@ def load_rgb_mean_std(root):
 
 def compute_mean_and_std(root):
 
+    # Retrieve all the Images in the "root" directory
 	types = ('*.png', '*.jpg')
 	training_images = []
 	for files in types:
+        # This loop takes into account all the subdirectories of "root"
 		training_images.extend(glob.glob(root + '/*/' + files))	
 
 	pixel_num = 0
@@ -98,8 +103,8 @@ def compute_mean_and_std(root):
 	channel_sum_squared = np.zeros(3)
 
 	for i in tqdm(training_images):
-		im = cv2.imread(i)
-		im = im/255.0
+		im = cv2.imread(i)  # BGR format, (Height, Width, Channels), values in [0, 255]
+		im = im/255.0       # Values in [0, 1]
 
 		pixel_num += (im.size/3)
 		channel_sum += np.sum(im, axis = (0, 1))
