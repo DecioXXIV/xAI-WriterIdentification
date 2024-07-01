@@ -128,8 +128,7 @@ def compute_mean_and_std(root):
 ### ############# ###
 def show_attr(attr_map, output_name):
     fig, _ = viz.visualize_image_attr(
-        # attr_map, #.permute(1, 2, 0).cpu().numpy(),  # adjust shape to height, width, channels
-        attr_map.permute(1, 2, 0).cpu().numpy(), 
+        attr_map.permute(1, 2, 0).cpu().numpy(), # adjust shape to height, width, channels
         method='heat_map',
         sign='all',
         show_colorbar=True,

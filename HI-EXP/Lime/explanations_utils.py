@@ -149,4 +149,4 @@ def extract_image_crops(
             list_masks.append(mask_array_copy[:, :, ::-1])
     
     # Saves a GIF file which describes the cropping process
-    imageio.mimsave(f'./explanations/crop_level/{file_name}/{file_name}_crops.gif', list_images, duration=0.8)
+    imageio.mimsave(f'./explanations/crop_level/{file_name}/{file_name}_crops.gif', list_images, duration=1.25)
