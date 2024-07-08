@@ -8,71 +8,13 @@ import pickle as pkl
 from tqdm import tqdm
 from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
-import torchvision.models as models
 import torchvision.datasets as datasets
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
 
-# Model
-
-class BaseModel(nn.Module):
-    def __init__(self,):
-        super().__init__()
-        encoder = models.__dict__['resnet18'](num_classes = 512)
-        encoder = nn.Sequential(*(list(encoder.children())[:-1]))
-        self.enc = encoder
-        self.fc_layers = nn.Sequential()
-        new_layer = add_fc_layer('last', 512,  1024)
-        self.fc_layers.add_module('fc0', new_layer)
-
-    def forward(self, x):
-        x = self.enc(x).squeeze()
-        x = self.fc_layers(x)
-        return x
-
-def load_model(mode, cp_path):
-    cp = torch.load(cp_path)['model_state_dict']
-    cp.pop('alpha')
-
-    base_model = BaseModel()
-
-    base_model.load_state_dict(cp)
-   
-    if mode == 'frozen':
-        for param in base_model.parameters():
-            param.requires_grad = False
-    
-    return base_model
-
-def add_fc_layer(type_fc_layer, in_f, out_f):
-    if type_fc_layer == 'last':
-        fc_block = nn.Sequential(*[nn.Linear(in_features = in_f, out_features = out_f)])
-    elif type_fc_layer == 'hidden':
-        fc_block = nn.Sequential(*[nn.Linear(in_features = in_f, out_features = out_f),
-                    nn.BatchNorm1d(out_f), nn.ReLU(), nn.Dropout(p = 0.3)])
-    else:
-        raise Exception('Wrong fully connected layer type')
-    
-    return fc_block 
-
-class Classification_Model(nn.Module):
-    def __init__(self, mode = None, cp_path = './', num_classes = 8):
-        super().__init__()
-        self.base_model = load_model(mode, cp_path)
-        self.fc_layers = nn.Sequential()
-        self.num_classes = num_classes
-        new_layer = add_fc_layer('hidden', 1024,  32)
-        class_layer = add_fc_layer('last', 32, self.num_classes)
-        self.fc_layers.add_module('fc0', new_layer)
-        self.fc_layers.add_module('fc1', class_layer)
-
-    def forward(self, x):
-        x = self.base_model(x)
-        x = self.fc_layers(x)
-        return x
-
-# Dataset
-
+### ####### ###
+### DATASET ###
+### ####### ###
 def compute_mean_and_std(root):
 
 	types = ('*.png', '*.jpg')
@@ -191,10 +133,11 @@ class NRandomCrop(object):
 
 class Standard_DataLoader():
 	
-	def __init__(self, directory, batch_size, weighted_sampling = True, phase = 'train', mean = [0, 0, 0], std = [1, 1, 1], shuffle = True):
+	def __init__(self, directory, batch_size, img_crop_size, weighted_sampling = True, phase = 'train', mean = [0, 0, 0], std = [1, 1, 1], shuffle = True):
 
 		self.directory = directory
 		self.batch_size = batch_size
+		self.img_crop_size = img_crop_size
 		self.weighted_sampling = weighted_sampling
 		self.phase = phase
 		self.shuffle = shuffle
@@ -218,7 +161,6 @@ class Standard_DataLoader():
 		return weight    
 
 	def compose_transform(self, 
-		img_crop_size = 380,
 		cjitter = {'brightness': [0.4, 1.3], 'contrast': 0.6, 'saturation': 0.6,'hue': 0.4}, 
 		cjitter_p = 1, 
 		randaffine = {'degrees': [-10,10], 'translate': [0.2, 0.2], 'scale': [1.3, 1.4], 'shear': 1}, 
@@ -235,7 +177,7 @@ class Standard_DataLoader():
 		randaffine['fill'] = randpersp['fill'] = [255, 255, 255]
 
 		train_transforms = T.Compose([
-			T.RandomCrop(size = img_crop_size, padding = None, pad_if_needed = True, fill = (255, 255, 255), padding_mode = 'constant'),
+			T.RandomCrop(size = self.img_crop_size, padding = None, pad_if_needed = True, fill = (255, 255, 255), padding_mode = 'constant'),
 			T.RandomApply([T.ColorJitter(**cjitter)], p=cjitter_p),
 			T.RandomAffine(**randaffine),
 			T.RandomPerspective(**randpersp),
@@ -249,13 +191,13 @@ class Standard_DataLoader():
 			])	
 
 		val_transforms = T.Compose([
-			T.RandomCrop(size = img_crop_size, padding = None, pad_if_needed = True, fill = (255, 255, 255), padding_mode = 'constant'),
+			T.RandomCrop(size = self.img_crop_size, padding = None, pad_if_needed = True, fill = (255, 255, 255), padding_mode = 'constant'),
 			T.ToTensor(),
 			T.Normalize(self.mean, self.std)
 			])
 
 		test_transforms = T.Compose([
-            NRandomCrop(size = img_crop_size, n = n_test_crops, pad_if_needed = True),
+            NRandomCrop(size = self.img_crop_size, n = n_test_crops, pad_if_needed = True),
             T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(crop)) for crop in crops]))
             ])
 		
@@ -284,8 +226,9 @@ class Standard_DataLoader():
 			loader = DataLoader(dataset, batch_size = self.batch_size, shuffle = self.shuffle)
 		return dataset, loader
 
-# Training
-
+### ############## ###
+### MODEL TRAINING ###
+### ############## ###
 class save_results():
     def __init__(self, history_path, checkpoint_path, test_name):
         self.history_path = history_path
@@ -427,8 +370,9 @@ class Trainer():
     def __call__(self):
         self.train_model()
 
-# Evaluation
-
+### ################ ###
+### MODEL EVALUATION ###
+### ################ ###
 def produce_classification_reports(dl, device, model, output_dir, test_id):    
     dataset = dl.generate_dataset()
     _, set_ = dl.load_data()
