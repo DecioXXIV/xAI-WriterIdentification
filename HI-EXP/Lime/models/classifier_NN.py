@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
+import torch.nn.functional as F
 
 class BaseModel(nn.Module):
     def __init__(self,):
@@ -16,6 +17,11 @@ class BaseModel(nn.Module):
         x = self.enc(x).squeeze()
         x = self.fc_layers(x)
         return x
+    
+    def predict_proba(self, x):
+        x = self.forward(x)
+        output_probs = F.softmax(x, dim=1)[0]
+        return output_probs
 
 class Classification_Model(nn.Module):
     def __init__(self, mode = None, cp_path = './', num_classes = 8):
@@ -34,6 +40,11 @@ class Classification_Model(nn.Module):
             x = x.unsqueeze(0)
         x = self.fc_layers(x)
         return x
+    
+    def predict_proba(self, x):
+        x = self.forward(x)
+        output_probs = F.softmax(x, dim=1)
+        return output_probs
 
 def load_model(mode, cp_path):
     cp = torch.load(cp_path)['model_state_dict']
