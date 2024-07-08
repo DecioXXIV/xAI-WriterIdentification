@@ -228,8 +228,8 @@ class MaskedPatchesExplainer:
                     feature_mask = mask.unsqueeze(0)
 
                     attr_map_mean = np.zeros((crop_size, crop_size, 3))
-
-                    lr_lime = Lime(self.model, interpretable_model=SkLearnLinearRegression(), similarity_func=exp_eucl_distance)
+                    # lr_lime = Lime(self.model, interpretable_model=SkLearnLinearRegression(), similarity_func=exp_eucl_distance)
+                    lr_lime = Lime(self.model.predict_proba, interpretable_model=SkLearnLinearRegression(), similarity_func=exp_eucl_distance)
 
                     for _ in range(n_iter):
                         attrs = lr_lime.attribute(
@@ -275,7 +275,7 @@ class MaskedPatchesExplainer:
 
         get_rois(mask_with_attr_scores, base_img, base_mask, self.block_width, self.block_height, instance_name, output_dir, num_rois = 5, threshold = 0.5)
 
-    def compute_masked_patches_explanation(self, instance_name, label_idx, crops_bbxs, reduction_method, min_eval, num_samples_for_baseline=10, save_crops=False):
+    def compute_masked_patches_explanation(self, instance_name, label_idx, crops_bbxs, crop_dim, reduction_method, min_eval, num_samples_for_baseline=10, save_crops=False):
         scores_name = f"{instance_name}_scores.pkl"
         output_dir = f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.test_id}/{instance_name}"
     
@@ -295,7 +295,7 @@ class MaskedPatchesExplainer:
         simplified_scores = reduce_scores(base_mask, scores, reduction_method, min_eval)
 
         dict_plots_template = {
-            'num_patches_to_remove': [5, 7, 10, 15, 20, 30],
+            'num_patches_to_remove': np.linspace(2, np.sqrt(crop_dim), num=6, dtype=int).tolist(),
             'clean_crop': [],
             'relevant_patches': [],
             'misleading_patches': [],
@@ -304,10 +304,12 @@ class MaskedPatchesExplainer:
         }
 
         for i, bbx in enumerate(crops_bbxs):
+            os.makedirs(f"{output_dir}/{instance_name}_crop{str(i)}", exist_ok=True)
+
             dict_plots = deepcopy(dict_plots_template)
             img_crop, mask_crop = base_img.crop(bbx), base_mask.crop(bbx)
             mask_with_attr_scores = assign_attr_scores_to_mask(mask_crop, simplified_scores)
-            custom_visualization(mask_with_attr_scores, min_eval, f"{output_dir}/{instance_name}_{str(i)}")
+            custom_visualization(mask_with_attr_scores, min_eval, f"{output_dir}/{instance_name}_crop{str(i)}/{instance_name}_crop{str(i)}")
 
             mask_crop_array = np.array(mask_crop)
             idxs = np.unique(mask_crop_array)
@@ -322,7 +324,7 @@ class MaskedPatchesExplainer:
 
                 list_results = list()
 
-                img_crop.save(f"{output_dir}/{instance_name}_{str(i)}_0.png")
+                img_crop.save(f"{output_dir}/{instance_name}_crop{str(i)}/{instance_name}_crop{str(i)}.png")
 
                 for k, erased_crop in enumerate(erased_crops):
                     if save_crops:
@@ -353,7 +355,7 @@ class MaskedPatchesExplainer:
                 mean_confidence = round(mean_confidence * 100, 2)
                 confidence_std = round(confidence_std * 100, 2)
 
-                with open(f"{output_dir}/{str(i)}_confidence_patches.txt", "a") as f:
+                with open(f"{output_dir}/{instance_name}_crop{str(i)}/crop{str(i)}_confidence_patches.txt", "a") as f:
                     f.write(f'Clean crop: Predicted class {list_results[0][0]} - Confidence: {clean_crop_confidence}%\n')
                     f.write(f'Crop without the {n_patches_to_remove} most relevant patches: Predicted class {list_results[1][0]} - Confidence: {relevant_patches_confidence}%\n')
                     f.write(f'Crop without the {n_patches_to_remove} most misleading patches: Predicted class {list_results[2][0]} - Confidence: {misleading_patches_confidence}%\n')
@@ -376,5 +378,5 @@ class MaskedPatchesExplainer:
             ax.errorbar(dict_plots['num_patches_to_remove'], dict_plots['random_patches'], dict_plots['random_patches_std'], marker='o', label='Random patches')
         
             ax.legend(loc='lower left')
-            fig.savefig(f'{output_dir}/{instance_name}_plot.png')
+            fig.savefig(f'{output_dir}/{instance_name}_crop{str(i)}/{instance_name}_crop{i}_plot.png')
             plt.close(fig)
