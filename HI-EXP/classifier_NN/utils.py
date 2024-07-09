@@ -1,16 +1,16 @@
 import torch, glob, os, cv2, numbers, random, sys, itertools
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
-from torch.utils.data.sampler import WeightedRandomSampler
 import numpy as np
 import pickle as pkl
-from tqdm import tqdm
-from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import torchvision.datasets as datasets
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
+from tqdm import tqdm
+from torch.utils.data import DataLoader
+from torch.utils.data.sampler import WeightedRandomSampler
+from sklearn.metrics import classification_report, confusion_matrix
 
 ### ####### ###
 ### DATASET ###
