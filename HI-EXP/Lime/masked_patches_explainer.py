@@ -9,7 +9,7 @@ from collections import defaultdict
 from tqdm import tqdm
 from captum.attr import Lime
 from captum.attr._core.lime import get_exp_kernel_similarity_function
-from captum._utils.models.linear_model import SkLearnLinearRegression
+from captum._utils.models.linear_model import SkLearnLinearRegression, SkLearnLasso, SkLearnRidge
 from captum.attr import visualization as viz
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import LinearSegmentedColormap
@@ -150,7 +150,7 @@ def return_erased_crops(num_patches, num_random_samples, dict_scores, mask_crop_
 
     return list_erased_crops
 
-def get_crops_bbxs(image, final_width=380, final_height=380):
+def get_crops_bbxs(image, final_width, final_height):
     img_width, img_height = image.size
 
     vertical_cuts = img_width // final_width
@@ -180,15 +180,17 @@ class MaskedPatchesExplainer:
             classifier: str, 
             test_id: str, 
             block_size: Tuple[int, int], 
-            model, 
-            mean: Tuple[float,float,float]=None,
-            std: Tuple[float,float,float]=None,
+            model,
+            surrogate_model: str="LinReg", 
+            mean=None,
+            std=None,
             device=None):
         
         self.classifier = classifier
         self.test_id = test_id
         self.block_width, self.block_height = block_size
         self.model = model
+        self.surrogate_model = surrogate_model
         if device is not None:
             self.device = device
         
@@ -208,7 +210,26 @@ class MaskedPatchesExplainer:
         base_img, base_mask = Image.open(img_path), Image.open(mask_path)
         scores = defaultdict(list)
 
+        # Lime Inizialization
+        forward_func, interpretable_model = None, None
+
+        match self.classifier:
+            case "classifier_NN":
+                forward_func = self.model
+            # case "classifier_SVM":
+            #     forward_func = self.model.predict_proba
+
+        match self.surrogate_model:
+            case "LinReg":
+                interpretable_model = SkLearnLinearRegression()
+            case "Lasso":
+                interpretable_model = SkLearnLasso()
+            case "Ridge":
+                interpretable_model = SkLearnRidge()
+
         exp_eucl_distance = get_exp_kernel_similarity_function('euclidean', kernel_width=1000)
+
+        lime = Lime(forward_func=forward_func, interpretable_model=interpretable_model, similarity_func=exp_eucl_distance)
 
         if not os.path.exists(f"{output_dir}/{scores_name}"):
             G, nc, nr = create_image_grid(crop_size, overlap, base_img)
@@ -221,18 +242,16 @@ class MaskedPatchesExplainer:
                     mask_array = np.array(mask_crop)
                     idxs = np.unique(mask_array)
 
-                    img, mask, n_interpret_features = apply_transforms_crops(img_crop, mask_crop, self.mean_, self.std_)
+                    img, mask, _ = apply_transforms_crops(img_crop, mask_crop, self.mean_, self.std_)
                     img, mask = img.to(self.device), mask.to(self.device)
 
                     input_ = img.unsqueeze(0)
                     feature_mask = mask.unsqueeze(0)
 
                     attr_map_mean = np.zeros((crop_size, crop_size, 3))
-                    # lr_lime = Lime(self.model, interpretable_model=SkLearnLinearRegression(), similarity_func=exp_eucl_distance)
-                    lr_lime = Lime(self.model.predict_proba, interpretable_model=SkLearnLinearRegression(), similarity_func=exp_eucl_distance)
 
                     for _ in range(n_iter):
-                        attrs = lr_lime.attribute(
+                        attrs = lime.attribute(
                             input_,
                             target=label_idx,
                             feature_mask=feature_mask,
@@ -295,7 +314,7 @@ class MaskedPatchesExplainer:
         simplified_scores = reduce_scores(base_mask, scores, reduction_method, min_eval)
 
         dict_plots_template = {
-            'num_patches_to_remove': np.linspace(2, np.sqrt(crop_dim), num=6, dtype=int).tolist(),
+            'num_patches_to_remove': [5, 7, 10, 15, 20, 30],
             'clean_crop': [],
             'relevant_patches': [],
             'misleading_patches': [],
@@ -319,54 +338,72 @@ class MaskedPatchesExplainer:
             sorted_filtered_simplified_scores = dict(sorted(filtered_simplified_scores.items(), key=lambda item: item[1], reverse=True))
 
             for n_patches_to_remove in dict_plots["num_patches_to_remove"]:
-                erased_crops = return_erased_crops(n_patches_to_remove, num_samples_for_baseline, sorted_filtered_simplified_scores, mask_crop_array, img_crop)
-                erased_crops.insert(0, img_crop)
+                try:
+                    erased_crops = return_erased_crops(n_patches_to_remove, num_samples_for_baseline, sorted_filtered_simplified_scores, mask_crop_array, img_crop)
+                    erased_crops.insert(0, img_crop)
 
-                list_results = list()
+                    list_results = list()
 
-                img_crop.save(f"{output_dir}/{instance_name}_crop{str(i)}/{instance_name}_crop{str(i)}.png")
+                    img_crop.save(f"{output_dir}/{instance_name}_crop{str(i)}/{instance_name}_crop{str(i)}.png")
 
-                for k, erased_crop in enumerate(erased_crops):
-                    if save_crops:
-                        erased_crop.save(f"{output_dir}/{instance_name}_{str(i)}_{str(k+1)}.png")
+                    for k, erased_crop in enumerate(erased_crops):
+                        if save_crops:
+                            erased_crop.save(f"{output_dir}/{instance_name}_crop{str(i)}/{instance_name}_crop{str(i)}_{str(k+1)}.png")
                     
-                    input_ = img_transforms(erased_crop).to(self.device).unsqueeze(0)
+                        input_ = img_transforms(erased_crop).to(self.device).unsqueeze(0)
 
-                    with torch.no_grad():
-                        output = self.model(input_)
-                        output_probs = F.softmax(output, dim=1)[0]
-                        predicted_class = output_probs.argmax().cpu().item()
-                        confidence = output_probs.max().cpu().item()
+                        with torch.no_grad():
+                            if self.classifier == "classifier_NN":
+                                output = self.model(input_)
+                                output_probs = F.softmax(output, dim=1)[0]
+                            # if self.classifier == "classifier_SVM":
+                            #     output_probs = self.model.predict_proba(input_, one_sample=True)
 
-                        if predicted_class != label_idx:
-                            confidence = 0.0
-                        
-                        list_results.append([predicted_class, confidence])
+                            class_confidence = output_probs[label_idx].cpu().item()
+                            predicted_class = output_probs.argmax().cpu().item()
+                            predicted_confidence = output_probs.max().cpu().item()
+                            list_results.append([label_idx, class_confidence, predicted_class, predicted_confidence])
                 
-                clean_crop_confidence = round(list_results[0][1]*100, 2)
-                relevant_patches_confidence = round(list_results[1][1]*100, 2)
-                misleading_patches_confidence = round(list_results[2][1]*100, 2)
+                    clean_crop_confidence_gt, clean_crop_confidence_pred = round(list_results[0][1]*100, 2), round(list_results[0][3]*100, 2)
+                    relevant_patches_confidence_gt, relevant_patches_confidence_pred = round(list_results[1][1]*100, 2), round(list_results[1][3]*100, 2) 
+                    misleading_patches_confidence_gt, misleading_patches_confidence_pred = round(list_results[2][1]*100, 2), round(list_results[2][3]*100, 2)
 
-                random_confidences = [result[1] for result in list_results[3:] if result[0] == list_results[0][0]]
-                random_samples_counter = len(random_confidences)
-                mean_confidence = np.mean(random_confidences) if random_samples_counter > 0 else 0.0
-                confidence_std = np.std(random_confidences) if random_samples_counter > 0 else 0.0
+                    random_confidences_gt = [result[1] for result in list_results[3:]]
+                    random_confidences_pred = [result[3] for result in list_results[3:]]
+                    random_samples_counter = len(random_confidences_gt)
+                    mean_confidence_gt = np.mean(random_confidences_gt) if random_samples_counter > 0 else 0.0
+                    confidence_std_gt = np.std(random_confidences_gt) if random_samples_counter > 0 else 0.0
 
-                mean_confidence = round(mean_confidence * 100, 2)
-                confidence_std = round(confidence_std * 100, 2)
+                    mean_confidence_pred = np.mean(random_confidences_pred) if random_samples_counter > 0 else 0.0
+                    confidence_std_pred = np.std(random_confidences_pred) if random_samples_counter > 0 else 0.0
 
-                with open(f"{output_dir}/{instance_name}_crop{str(i)}/crop{str(i)}_confidence_patches.txt", "a") as f:
-                    f.write(f'Clean crop: Predicted class {list_results[0][0]} - Confidence: {clean_crop_confidence}%\n')
-                    f.write(f'Crop without the {n_patches_to_remove} most relevant patches: Predicted class {list_results[1][0]} - Confidence: {relevant_patches_confidence}%\n')
-                    f.write(f'Crop without the {n_patches_to_remove} most misleading patches: Predicted class {list_results[2][0]} - Confidence: {misleading_patches_confidence}%\n')
-                    f.write(f'Crop without {n_patches_to_remove} random patches ({random_samples_counter}/{num_samples_for_baseline} repetitions): Predicted class {list_results[0][0]} - Mean Confidence: {mean_confidence}% - Confidence Standard Deviation: {confidence_std}%\n')
-                    f.write('---------------------\n')
+                    mean_confidence_gt, mean_confidence_pred = round(mean_confidence_gt * 100, 2), round(mean_confidence_pred * 100, 2)
+                    confidence_std_gt, confidence_std_pred = round(confidence_std_gt * 100, 2), round(confidence_std_pred * 100, 2)
 
-                dict_plots['clean_crop'].append(clean_crop_confidence)
-                dict_plots['relevant_patches'].append(relevant_patches_confidence)
-                dict_plots['misleading_patches'].append(misleading_patches_confidence)
-                dict_plots['random_patches'].append(mean_confidence)
-                dict_plots['random_patches_std'].append(confidence_std)
+                    with open(f"{output_dir}/{instance_name}_crop{str(i)}/crop{str(i)}_confidence_patches.txt", "a") as f:
+                        f.write("CLEAN CROP\n")
+                        f.write(f"True class {list_results[0][0]} - Confidence: {clean_crop_confidence_gt}%\n")
+                        f.write(f"Predicted class {list_results[0][2]} - Confidence: {clean_crop_confidence_pred}%\n")
+                        f.write(f"REMOVING THE {n_patches_to_remove} MOST RELEVANT PATCHES\n")
+                        f.write(f"True class {list_results[1][0]} - Confidence: {relevant_patches_confidence_gt}%\n")
+                        f.write(f"Predicted class {list_results[1][2]} - Confidence: {relevant_patches_confidence_pred}%\n")
+                        f.write(f"REMOVING THE {n_patches_to_remove} MOST MISLEADING PATCHES\n")
+                        f.write(f"True class {list_results[2][0]} - Confidence: {misleading_patches_confidence_gt}%\n")
+                        f.write(f"Predicted class {list_results[2][2]} - Confidence: {misleading_patches_confidence_pred}%\n")
+                        f.write(f"REMOVING {n_patches_to_remove} RANDOM PATCHES ({random_samples_counter}/{num_samples_for_baseline} repetitions)\n")
+                        f.write(f"True class {list_results[3][0]} - Mean Confidence: {mean_confidence_gt}% - Confidence Standard Deviation: {confidence_std_gt}%\n")
+                        f.write(f"Predicted class {list_results[3][2]} - Mean Confidence: {mean_confidence_pred}% - Confidence Standard Deviation: {confidence_std_pred}%\n")
+                        f.write('---------------------\n')
+
+                    dict_plots['clean_crop'].append(clean_crop_confidence_gt)
+                    dict_plots['relevant_patches'].append(relevant_patches_confidence_gt)
+                    dict_plots['misleading_patches'].append(misleading_patches_confidence_gt)
+                    dict_plots['random_patches'].append(mean_confidence_gt)
+                    dict_plots['random_patches_std'].append(confidence_std_gt)
+                
+                except:
+                    print(f"Error processing crop {i} with {n_patches_to_remove} patches removed")
+                    continue
             
             # Visualization
             fig, ax = plt.subplots(figsize=(10, 10))

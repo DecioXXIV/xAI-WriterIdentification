@@ -12,17 +12,6 @@ class BaseModel(nn.Module):
         new_layer = self.add_fc_layer('last', 512,  1024)
         self.fc_layers.add_module('fc0', new_layer)
     
-    def add_fc_layer(self, type_fc_layer, in_f, out_f):
-        if type_fc_layer == 'last':
-            fc_block = nn.Sequential(*[nn.Linear(in_features = in_f, out_features = out_f)])
-        elif type_fc_layer == 'hidden':
-            fc_block = nn.Sequential(*[nn.Linear(in_features = in_f, out_features = out_f),
-                    nn.BatchNorm1d(out_f), nn.ReLU(), nn.Dropout(p = 0.3)])
-        else:
-            raise Exception('Wrong fully connected layer type')
-    
-        return fc_block 
-
     def forward(self, x):
         x = self.enc(x).squeeze()
         x = self.fc_layers(x)
@@ -38,33 +27,33 @@ class NN_Classifier(nn.Module):
         class_layer = self.add_fc_layer('last', 32, self.num_classes)
         self.fc_layers.add_module('fc0', new_layer)
         self.fc_layers.add_module('fc1', class_layer)
-    
-    def load_encoder(self, mode, cp_path):
-        cp = torch.load(cp_path)['model_state_dict']
-        cp.pop('alpha')
-
-        base_model = BaseModel()
-
-        base_model.load_state_dict(cp)
-   
-        if mode == 'frozen':
-            for param in base_model.parameters():
-                param.requires_grad = False
-    
-        return base_model
-
-    def add_fc_layer(self, type_fc_layer, in_f, out_f):
-        if type_fc_layer == 'last':
-            fc_block = nn.Sequential(*[nn.Linear(in_features = in_f, out_features = out_f)])
-        elif type_fc_layer == 'hidden':
-            fc_block = nn.Sequential(*[nn.Linear(in_features = in_f, out_features = out_f),
-                    nn.BatchNorm1d(out_f), nn.ReLU(), nn.Dropout(p = 0.3)])
-        else:
-            raise Exception('Wrong fully connected layer type')
-    
-        return fc_block 
 
     def forward(self, x):
         x = self.base_model(x)
         x = self.fc_layers(x)
         return x
+
+def add_fc_layer(type_fc_layer, in_f, out_f):
+    if type_fc_layer == 'last':
+        fc_block = nn.Sequential(*[nn.Linear(in_features = in_f, out_features = out_f)])
+    elif type_fc_layer == 'hidden':
+        fc_block = nn.Sequential(*[nn.Linear(in_features = in_f, out_features = out_f),
+                    nn.BatchNorm1d(out_f), nn.ReLU(), nn.Dropout(p = 0.3)])
+    else:
+        raise Exception('Wrong fully connected layer type')
+    
+    return fc_block
+
+def load_encoder(mode, cp_path):
+    cp = torch.load(cp_path)['model_state_dict']
+    cp.pop('alpha')
+
+    base_model = BaseModel()
+
+    base_model.load_state_dict(cp)
+   
+    if mode == 'frozen':
+        for param in base_model.parameters():
+            param.requires_grad = False
+    
+    return base_model 
