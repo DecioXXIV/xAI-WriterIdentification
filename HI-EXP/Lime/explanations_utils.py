@@ -49,7 +49,8 @@ def generate_page_mask(
         file_name: str, 
         block_height: int, 
         block_width: int, 
-        verbose: bool=True):
+        verbose: bool=True,
+        copy: bool=True):
     """
     Args:
         file_name (str): name of the image file (without extension) to be cropped
@@ -60,35 +61,38 @@ def generate_page_mask(
         None -> saves the mask in the './data/<file_name>' directory
     """
 
-    img = Image.open(f"./data/{file_name}.jpg")
-    img_width, img_height = img.size
+    os.makedirs(f"./explanations/page_level/{file_name}", exist_ok=True)
 
-    if verbose:
-        print(f"Original Image Size: {img_width}x{img_height} pixels")
+    if not copy:
+        img = Image.open(f"./data/{file_name}.jpg")
+        img_width, img_height = img.size
 
-    block_width, block_height = block_width, block_height
-    num_columns, num_rows = int(img_width/block_width) + 1, int(img_height/block_height) + 1
+        if verbose:
+            print(f"Original Image Size: {img_width}x{img_height} pixels")
 
-    idx = np.arange(int(num_columns*num_rows), dtype=np.uint16)
-    np.random.shuffle(idx)
-    mask = idx.reshape((num_rows, num_columns)).repeat(block_height, axis = 0).repeat(block_width, axis = 1)*1000
+        block_width, block_height = block_width, block_height
+        num_columns, num_rows = int(img_width/block_width) + 1, int(img_height/block_height) + 1
 
-    mask_img = Image.fromarray(mask)
-    mask_width, mask_height = mask_img.size
+        idx = np.arange(int(num_columns*num_rows), dtype=np.uint16)
+        np.random.shuffle(idx)
+        mask = idx.reshape((num_rows, num_columns)).repeat(block_height, axis = 0).repeat(block_width, axis = 1)*1000
 
-    left, right = (mask_width - img_width)/2, (mask_width + img_width)/2
-    top, bottom = (mask_height - img_height)/2, (mask_height + img_height)/2
+        mask_img = Image.fromarray(mask)
+        mask_width, mask_height = mask_img.size
 
-    mask = mask_img.crop((left, top, right, bottom))
-    mask = mask.crop((0, 0, img_width, img_height))
-    if verbose:
-        mask_width, mask_height = mask.size
-        print(f"Mask Image Size: {mask_width}x{mask_height} pixels")
+        left, right = (mask_width - img_width)/2, (mask_width + img_width)/2
+        top, bottom = (mask_height - img_height)/2, (mask_height + img_height)/2
+
+        mask = mask_img.crop((left, top, right, bottom))
+        mask = mask.crop((0, 0, img_width, img_height))
+        if verbose:
+            mask_width, mask_height = mask.size
+            print(f"Mask Image Size: {mask_width}x{mask_height} pixels")
+
+        mask.save(f"./explanations/page_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")
     
-    if not os.path.exists(f"./data/{file_name}"):
-        os.mkdir(f"./data/{file_name}")
-
-    mask.save(f"./data/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")
+    else:
+        os.system(f"cp ./def_mask.png ./explanations/page_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")
 
 def extract_image_crops(
         file_name:str, 
