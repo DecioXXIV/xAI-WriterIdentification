@@ -17,7 +17,6 @@ def get_args():
     parser.add_argument("-instance", type=str)
     parser.add_argument("-test_id", type=str)
     parser.add_argument("-model", type=str)
-    parser.add_argument("-opt", type=str, default=None)
     parser.add_argument("-timestamp", type=str)
     parser.add_argument("-surrogate_model", type=str)
 
@@ -28,11 +27,10 @@ def get_args():
 ### ############### ###
 
 class ImageMaskerFromExp:
-    def __init__(self, instance: str, test_id: str, model: str, opt, timestamp: str, surrogate_model: str):
+    def __init__(self, instance: str, test_id: str, model: str, timestamp: str, surrogate_model: str):
         self.instance = instance
         self.test_id = test_id
         self.model = model
-        self.opt = opt
         self.timestamp = timestamp
         self.surrogate_model = surrogate_model
     
@@ -49,11 +47,8 @@ class ImageMaskerFromExp:
         else: raise Exception("Instance not found in 'mask_images' directory")
         
         os.system(f"cp ./mask_images/{self.instance}{self.INSTANCE_FILETYPE} {self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}{self.INSTANCE_FILETYPE}")
-        
-        if self.model == "NN":
-            EXP_DIR = f"./explanations/patches_75x75_removal/{self.test_id}_{self.opt}-{self.model}-{self.timestamp}-{self.surrogate_model}"
-        else:
-            EXP_DIR = f"./explanations/patches_75x75_removal/{self.test_id}-{self.model}-{self.timestamp}-{self.surrogate_model}"
+
+        EXP_DIR = f"./explanations/patches_75x75_removal/{self.test_id}-{self.model}-{self.timestamp}-{self.surrogate_model}"
         
         all_instances = os.listdir(EXP_DIR)
         filtered_instances = [i for i in all_instances if self.instance in i]
@@ -183,7 +178,6 @@ if __name__ == '__main__':
         instance=args.instance,
         test_id=args.test_id,
         model=args.model,
-        opt=args.opt,
         timestamp=args.timestamp,
         surrogate_model=args.surrogate_model)
     
