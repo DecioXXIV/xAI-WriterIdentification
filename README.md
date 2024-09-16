@@ -18,4 +18,4 @@ Each of them contains a checkpoint of the System's pre-trained backbone, the "mo
 ### Explanations with LIME
 The [Lime](https://github.com/DecioXXIV/xAI-WriterIdentification/tree/main/HI-EXP/Lime) folder contains:
 * Code to compute the explanations for a fine-tuned model: inspect the `explain_cedar.sh` and the `explain_cvl.sh` Shell scripts to see how to setup and run the explanation process
-* Code to employ the computed explanations with the aim of create a perturbed version of the employed instances: inspect the mask_instances.sh Shell script to see how to setup and run the instance-masking-from-computed-explanations process
+* Code to employ the computed explanations with the aim of create a perturbed version of the employed instances: inspect the `mask_instances.sh` Shell script to see how to setup and run the instance-masking-from-computed-explanations process
