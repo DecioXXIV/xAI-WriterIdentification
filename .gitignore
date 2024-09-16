@@ -161,18 +161,18 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-datasets/*
-HI-EXP/classifier_NN/tests/*/train/*
-HI-EXP/classifier_NN/tests/*/test/*
-HI-EXP/classifier_NN/tests/*/val/*
-HI-EXP/classifier_NN/tests/*/output/checkpoints/*
-HI-EXP/classifier_SVM/tests/*/train/*
-HI-EXP/classifier_SVM/tests/*/test/*
-HI-EXP/classifier_SVM/tests/*/val/*
-HI-EXP/classifier_SVM/tests/*/output/checkpoints/*
-HI-EXP/classifier_GB/tests/*/train/*
-HI-EXP/classifier_GB/tests/*/test/*
-HI-EXP/classifier_GB/tests/*/val/*
-HI-EXP/classifier_GB/tests/*/output/checkpoints/*
-HI-EXP/Lime/explanations/*
-HI-EXP/Lime/data/*
+# datasets/*
+# HI-EXP/classifier_NN/tests/*/train/*
+# HI-EXP/classifier_NN/tests/*/test/*
+# HI-EXP/classifier_NN/tests/*/val/*
+# HI-EXP/classifier_NN/tests/*/output/checkpoints/*
+# HI-EXP/classifier_SVM/tests/*/train/*
+# HI-EXP/classifier_SVM/tests/*/test/*
+# HI-EXP/classifier_SVM/tests/*/val/*
+# HI-EXP/classifier_SVM/tests/*/output/checkpoints/*
+# HI-EXP/classifier_GB/tests/*/train/*
+# HI-EXP/classifier_GB/tests/*/test/*
+# HI-EXP/classifier_GB/tests/*/val/*
+# HI-EXP/classifier_GB/tests/*/output/checkpoints/*
+# HI-EXP/Lime/explanations/*
+# HI-EXP/Lime/data/*
