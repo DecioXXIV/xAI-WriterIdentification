@@ -1,6 +1,8 @@
-import torch
+import torch, pickle
 import torch.nn as nn
 import torchvision.models as models
+from sklearn.svm import SVC
+from sklearn.ensemble import GradientBoostingClassifier
 
 ### ###### ###
 ### MODELS ###
@@ -38,6 +40,70 @@ class NN_Classifier(nn.Module):
         x = self.fc_layers(x)
         return x
 
+class SVM_Classifier(nn.Module):
+    def __init__(self, mode='frozen', cp_path='./'):
+        super().__init__()
+        self.base_model = load_encoder(mode, cp_path)
+        self.tail = SVC(C=1.0, kernel='rbf', decision_function_shape='ovo', probability=True, random_state=24)
+    
+    def extract_features(self, input_dl, device):
+        self.base_model.eval()
+        features, labels = list(), list()
+    
+        with torch.no_grad():
+            for data, target in input_dl:
+                data, target = data.to(device), target.to(device)
+                output = self.base_model(data)
+                features.append(output)
+                labels.append(target)
+        
+        features = torch.cat(features, dim=0)
+        labels = torch.cat(labels, dim=0)
+
+        return features, labels
+    
+    def forward(self, x):
+        x_encoded = self.base_model(x)
+        if len(x_encoded.shape) == 1:
+            x_encoded = x_encoded.unsqueeze(0)
+
+        x_encoded = x_encoded.cpu().detach().numpy()
+        x_out = self.tail.predict_proba(x_encoded)
+
+        return torch.tensor(x_out, dtype=torch.float32)
+
+class GB_Classifier(nn.Module):
+    def __init__(self, mode='frozen', cp_path='./'):
+        super().__init__()
+        self.base_model = load_encoder(mode, cp_path)
+        self.tail = GradientBoostingClassifier(max_depth=3)
+    
+    def extract_features(self, input_dl, device):
+        self.base_model.eval()
+        features, labels = list(), list()
+
+        with torch.no_grad():
+            for data, target in input_dl:
+                data, target = data.to(device), target.to(device)
+                output = self.base_model(data)
+                features.append(output)
+                labels.append(target)
+        
+        features = torch.cat(features, dim=0)
+        labels = torch.cat(labels, dim=0)
+    
+        return features, labels
+        
+    def forward(self, x):
+        x_encoded = self.base_model(x)
+        if len(x_encoded.shape) == 1:
+            x_encoded = x_encoded.unsqueeze(0)
+
+        x_encoded = x_encoded.cpu().detach().numpy()
+        x_out = self.tail.predict_proba(x_encoded)
+
+        return torch.tensor(x_out, dtype=torch.float32)
+
 ### ##### ###
 ### UTILS ###
 ### ##### ###
@@ -65,3 +131,7 @@ def add_fc_layer(type_fc_layer, in_f, out_f):
         raise Exception('Wrong fully connected layer type')
     
     return fc_block
+
+def load_tail(model_tail_path):
+    with open(model_tail_path, 'rb') as f:
+        return pickle.load(f)

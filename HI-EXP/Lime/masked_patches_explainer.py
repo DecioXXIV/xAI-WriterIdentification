@@ -78,7 +78,6 @@ def custom_visualization(
     plt_fig.savefig(f'{output_name}_att_heat_map_{min_eval}.png')
 
 def get_rois(scores_matrix, page, mask, block_width, block_height, pagename, output_dir, num_rois: int = None, threshold = 0.5):
-
     if not num_rois == None:
         flat_matrix = scores_matrix.flatten()
         flat_matrix_no_nan = np.unique(flat_matrix[np.logical_not(np.isnan(flat_matrix))])
@@ -205,31 +204,28 @@ class MaskedPatchesExplainer:
         os.makedirs(output_dir, exist_ok=True)
     
         img_path = f"./data/{instance_name}.jpg"
+        if f"{instance_name}.jpg" not in os.listdir("./data"):
+            img_path = f"./data/{instance_name}.png"
+        
         mask_path = f"./explanations/page_level/{instance_name}/{instance_name}_mask_blocks_{self.block_width}x{self.block_height}.png"
 
         base_img, base_mask = Image.open(img_path), Image.open(mask_path)
+        # base_img = base_img.convert("RGB")
         scores = defaultdict(list)
 
         # Lime Inizialization
-        forward_func, interpretable_model = None, None
-
-        match self.classifier:
-            case "classifier_NN":
-                forward_func = self.model
-            # case "classifier_SVM":
-            #     forward_func = self.model.predict_proba
-
+        interpretable_model = None
         match self.surrogate_model:
             case "LinReg":
                 interpretable_model = SkLearnLinearRegression()
             case "Lasso":
-                interpretable_model = SkLearnLasso()
+                interpretable_model = SkLearnLasso(alpha=2)
             case "Ridge":
-                interpretable_model = SkLearnRidge()
+                interpretable_model = SkLearnRidge(alpha=2)
 
         exp_eucl_distance = get_exp_kernel_similarity_function('euclidean', kernel_width=1000)
 
-        lime = Lime(forward_func=forward_func, interpretable_model=interpretable_model, similarity_func=exp_eucl_distance)
+        lime = Lime(forward_func=self.model, interpretable_model=interpretable_model, similarity_func=exp_eucl_distance)
 
         if not os.path.exists(f"{output_dir}/{scores_name}"):
             G, nc, nr = create_image_grid(crop_size, overlap, base_img)
@@ -281,9 +277,13 @@ class MaskedPatchesExplainer:
         output_dir = f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.test_id}/{instance_name}"
         
         img_path = f"./data/{instance_name}.jpg"
+        if f"{instance_name}.jpg" not in os.listdir("./data"):
+            img_path = f"./data/{instance_name}.png"
+
         mask_path = f"./explanations/page_level/{instance_name}/{instance_name}_mask_blocks_{self.block_width}x{self.block_height}.png"
 
         base_img, base_mask = Image.open(img_path), Image.open(mask_path)
+        # base_img = base_img.convert("RGB")
 
         with open(f"{output_dir}/{scores_name}", "rb") as handle:
             scores = pickle.load(handle)
@@ -292,16 +292,23 @@ class MaskedPatchesExplainer:
         mask_with_attr_scores = assign_attr_scores_to_mask(base_mask, simplified_scores)
         custom_visualization(mask_with_attr_scores, min_eval, f"{output_dir}/{instance_name}")
 
-        get_rois(mask_with_attr_scores, base_img, base_mask, self.block_width, self.block_height, instance_name, output_dir, num_rois = 5, threshold = 0.5)
+        try:
+            get_rois(mask_with_attr_scores, base_img, base_mask, self.block_width, self.block_height, instance_name, output_dir, num_rois = 5, threshold = 0.5)
+        except:
+            print("Error in ROIs visualization")
 
     def compute_masked_patches_explanation(self, instance_name, label_idx, crops_bbxs, crop_dim, reduction_method, min_eval, num_samples_for_baseline=10, save_crops=False):
         scores_name = f"{instance_name}_scores.pkl"
         output_dir = f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.test_id}/{instance_name}"
     
         img_path = f"./data/{instance_name}.jpg"
+        if f"{instance_name}.jpg" not in os.listdir("./data"):
+            img_path = f"./data/{instance_name}.png"
+        
         mask_path = f"./explanations/page_level/{instance_name}/{instance_name}_mask_blocks_{self.block_width}x{self.block_height}.png"
 
         base_img, base_mask = Image.open(img_path), Image.open(mask_path)
+        # base_img = base_img.convert("RGB")
 
         img_transforms = T.Compose([
             T.ToTensor(),
@@ -314,7 +321,7 @@ class MaskedPatchesExplainer:
         simplified_scores = reduce_scores(base_mask, scores, reduction_method, min_eval)
 
         dict_plots_template = {
-            'num_patches_to_remove': [5, 7, 10, 15, 20, 30],
+            'num_patches_to_remove': [],
             'clean_crop': [],
             'relevant_patches': [],
             'misleading_patches': [],
@@ -337,7 +344,9 @@ class MaskedPatchesExplainer:
             filtered_simplified_scores = {k: v for k, v in simplified_scores.items() if k in valid_idxs}
             sorted_filtered_simplified_scores = dict(sorted(filtered_simplified_scores.items(), key=lambda item: item[1], reverse=True))
 
-            for n_patches_to_remove in dict_plots["num_patches_to_remove"]:
+            n_patches_to_remove = 1
+            # for n_patches_to_remove in dict_plots["num_patches_to_remove"]:
+            while True:
                 try:
                     erased_crops = return_erased_crops(n_patches_to_remove, num_samples_for_baseline, sorted_filtered_simplified_scores, mask_crop_array, img_crop)
                     erased_crops.insert(0, img_crop)
@@ -356,14 +365,14 @@ class MaskedPatchesExplainer:
                             if self.classifier == "classifier_NN":
                                 output = self.model(input_)
                                 output_probs = F.softmax(output, dim=1)[0]
-                            # if self.classifier == "classifier_SVM":
-                            #     output_probs = self.model.predict_proba(input_, one_sample=True)
+                            elif (self.classifier == "classifier_SVM") or (self.classifier == "classifier_GB"):
+                                output_probs = self.model(input_)[0]
 
-                            class_confidence = output_probs[label_idx].cpu().item()
-                            predicted_class = output_probs.argmax().cpu().item()
-                            predicted_confidence = output_probs.max().cpu().item()
+                            class_confidence = output_probs[label_idx].detach().cpu().item()
+                            predicted_class = output_probs.argmax().detach().cpu().item()
+                            predicted_confidence = output_probs.max().detach().cpu().item()
                             list_results.append([label_idx, class_confidence, predicted_class, predicted_confidence])
-                
+               
                     clean_crop_confidence_gt, clean_crop_confidence_pred = round(list_results[0][1]*100, 2), round(list_results[0][3]*100, 2)
                     relevant_patches_confidence_gt, relevant_patches_confidence_pred = round(list_results[1][1]*100, 2), round(list_results[1][3]*100, 2) 
                     misleading_patches_confidence_gt, misleading_patches_confidence_pred = round(list_results[2][1]*100, 2), round(list_results[2][3]*100, 2)
@@ -394,7 +403,7 @@ class MaskedPatchesExplainer:
                         f.write(f"True class {list_results[3][0]} - Mean Confidence: {mean_confidence_gt}% - Confidence Standard Deviation: {confidence_std_gt}%\n")
                         f.write(f"Predicted class {list_results[3][2]} - Mean Confidence: {mean_confidence_pred}% - Confidence Standard Deviation: {confidence_std_pred}%\n")
                         f.write('---------------------\n')
-
+                    
                     dict_plots['clean_crop'].append(clean_crop_confidence_gt)
                     dict_plots['relevant_patches'].append(relevant_patches_confidence_gt)
                     dict_plots['misleading_patches'].append(misleading_patches_confidence_gt)
@@ -402,9 +411,13 @@ class MaskedPatchesExplainer:
                     dict_plots['random_patches_std'].append(confidence_std_gt)
                 
                 except:
-                    print(f"Error processing crop {i} with {n_patches_to_remove} patches removed")
-                    continue
-            
+                    print(f"End of patch removing for crop {i} with {n_patches_to_remove-1} removals")
+                    break
+                
+                dict_plots['num_patches_to_remove'].append(n_patches_to_remove)
+                n_patches_to_remove += 1
+                
+
             # Visualization
             fig, ax = plt.subplots(figsize=(10, 10))
             ax.set_xlabel('Number of patches removed [-]')
