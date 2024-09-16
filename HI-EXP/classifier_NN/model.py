@@ -9,7 +9,7 @@ class BaseModel(nn.Module):
         encoder = nn.Sequential(*(list(encoder.children())[:-1]))
         self.enc = encoder
         self.fc_layers = nn.Sequential()
-        new_layer = self.add_fc_layer('last', 512,  1024)
+        new_layer = add_fc_layer('last', 512,  1024)
         self.fc_layers.add_module('fc0', new_layer)
     
     def forward(self, x):
@@ -20,11 +20,11 @@ class BaseModel(nn.Module):
 class NN_Classifier(nn.Module):
     def __init__(self, mode = None, cp_path = './', num_classes = 8):
         super().__init__()
-        self.base_model = self.load_encoder(mode, cp_path)
+        self.base_model = load_encoder(mode, cp_path)
         self.fc_layers = nn.Sequential()
         self.num_classes = num_classes
-        new_layer = self.add_fc_layer('hidden', 1024,  32)
-        class_layer = self.add_fc_layer('last', 32, self.num_classes)
+        new_layer = add_fc_layer('hidden', 1024,  32)
+        class_layer = add_fc_layer('last', 32, self.num_classes)
         self.fc_layers.add_module('fc0', new_layer)
         self.fc_layers.add_module('fc1', class_layer)
 

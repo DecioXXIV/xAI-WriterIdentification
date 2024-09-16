@@ -8,6 +8,7 @@ import torchvision.datasets as datasets
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
 from tqdm import tqdm
+from copy import deepcopy
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 from sklearn.metrics import classification_report, confusion_matrix
@@ -132,9 +133,7 @@ class NRandomCrop(object):
 		return self.__class__.__name__ + '(size={0}, padding={1})'.format(self.size, self.padding)
 
 class Standard_DataLoader():
-	
 	def __init__(self, directory, batch_size, img_crop_size, weighted_sampling = True, phase = 'train', mean = [0, 0, 0], std = [1, 1, 1], shuffle = True):
-
 		self.directory = directory
 		self.batch_size = batch_size
 		self.img_crop_size = img_crop_size
@@ -148,7 +147,7 @@ class Standard_DataLoader():
 			self.std = std
 
 	def make_weights_for_balanced_classes(self, images, nclasses): # https://discuss.pytorch.org/t/balanced-sampling-between-classes-with-torchvision-dataloader/2703/3
-		count = [0] * nclasses                                                      
+		count = [0] * nclasses
 		for item in images:
 			count[item[1]] += 1
 		weight_per_class = [0.] * nclasses
@@ -158,7 +157,7 @@ class Standard_DataLoader():
 		weight = [0] * len(images)
 		for idx, val in enumerate(images):
 			weight[idx] = weight_per_class[val[1]]
-		return weight    
+		return weight
 
 	def compose_transform(self, 
 		cjitter = {'brightness': [0.4, 1.3], 'contrast': 0.6, 'saturation': 0.6,'hue': 0.4}, 
@@ -225,6 +224,7 @@ class Standard_DataLoader():
 		else:
 			loader = DataLoader(dataset, batch_size = self.batch_size, shuffle = self.shuffle)
 		return dataset, loader
+
 
 ### ############## ###
 ### MODEL TRAINING ###
