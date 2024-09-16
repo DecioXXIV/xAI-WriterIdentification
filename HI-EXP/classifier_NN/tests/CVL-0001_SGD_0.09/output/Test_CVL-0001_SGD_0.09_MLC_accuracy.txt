@@ -1,0 +1,4 @@
+The optimal value of accuracy for the training set is: 0.802
+The optimal value of accuracy for the validation set is: 0.876
+Epoch corresponding to the optimal value of the training accuracy: 99\100
+Epoch corresponding to the optimal value of the validation accuracy: 40\100
