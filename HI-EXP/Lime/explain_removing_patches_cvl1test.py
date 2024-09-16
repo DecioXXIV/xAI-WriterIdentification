@@ -11,7 +11,6 @@ def get_args():
     parser = ArgumentParser(description="Hyperparameters for the Explanation process", add_help=True)
     parser.add_argument("-test_id", type=str)
     parser.add_argument("-model", type=str)
-    parser.add_argument("-opt", type=str, default=None)
     parser.add_argument("-block_width", type=int)
     parser.add_argument("-block_height", type=int)
     parser.add_argument("-crop_size", type=int)
@@ -33,15 +32,12 @@ if __name__ == '__main__':
     LIME_ITERS = args.lime_iters
 
     assert MODEL_TYPE in ['NN', 'SVM', 'GB'], "Model must be in ['NN', 'SVM', 'GB']"
-    assert OPT in ['SGD', 'AdamW', None], "Optimization Algorithm must be in ['SGD', 'AdamW']"
     assert SURROGATE_MODEL in ['LinReg', 'Ridge'], "Surrogate Model must be in ['LinReg', 'Ridge']"
 
     MODEL_NAME = None
     match MODEL_TYPE:
         case 'NN':
             MODEL_NAME = "classifier_NN"
-            if OPT == "SGD": TEST_ID += "_SGD"
-            elif OPT == "AdamW": TEST_ID += "_AdamW"
         case 'SVM':
             MODEL_NAME = "classifier_SVM"
         case 'GB':
