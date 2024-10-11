@@ -8,7 +8,6 @@ import torchvision.datasets as datasets
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
 from tqdm import tqdm
-from copy import deepcopy
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 from sklearn.metrics import classification_report, confusion_matrix
@@ -18,43 +17,67 @@ from sklearn.metrics import classification_report, confusion_matrix
 ### ####### ###
 def compute_mean_and_std(root):
 
-	types = ('*.png', '*.jpg')
-	training_images = []
-	for files in types:
-		training_images.extend(glob.glob(root + '/*/' + files))	
+    types = ('*.png', '*.jpg')
+    training_images = []
+    for files in types:
+        training_images.extend(glob.glob(root + '/*/' + files))	
 
-	pixel_num = 0
-	channel_sum = np.zeros(3)
-	channel_sum_squared = np.zeros(3)
+    pixel_num = 0
+    channel_sum = np.zeros(3)
+    channel_sum_squared = np.zeros(3)
 
-	for i in tqdm(training_images):
-		im = cv2.imread(i)
-		im = im/255.0
+    for i in tqdm(training_images):
+        im = cv2.imread(i)
+        im = im/255.0
 
-		pixel_num += (im.size/3)
-		channel_sum += np.sum(im, axis = (0, 1))
-		channel_sum_squared += np.sum(np.square(im), axis=(0, 1))
+        pixel_num += (im.size/3)
+        channel_sum += np.sum(im, axis = (0, 1))
+        channel_sum_squared += np.sum(np.square(im), axis=(0, 1))
 
-	bgr_mean = channel_sum/pixel_num
-	bgr_std = np.sqrt(channel_sum_squared/pixel_num - np.square(bgr_mean))
+    bgr_mean = channel_sum/pixel_num
+    bgr_std = np.sqrt(channel_sum_squared/pixel_num - np.square(bgr_mean))
 
-	# change the format from bgr to rgb
-	rgb_mean = list(bgr_mean)[::-1]
-	rgb_std = list(bgr_std)[::-1]
+    # change the format from bgr to rgb
+    rgb_mean = list(bgr_mean)[::-1]
+    rgb_std = list(bgr_std)[::-1]
 
-	stats = [rgb_mean, rgb_std]
-	with open(root + os.sep + 'rgb_stats.pkl', 'wb') as f:
-		pkl.dump(stats, f) 
+    stats = [rgb_mean, rgb_std]
+    with open(root + os.sep + 'rgb_stats.pkl', 'wb') as f:
+        pkl.dump(stats, f) 
 
-	return rgb_mean, rgb_std
+    return rgb_mean, rgb_std
 
 def n_random_crops(img, x, y, h, w):
 
-	crops = []
-	for i in range(len(x)):
-		new_crop = img.crop((y[i], x[i], y[i] + w, x[i] + h))
-		crops.append(new_crop)
-	return tuple(crops)
+    crops = []
+    for i in range(len(x)):
+        new_crop = img.crop((y[i], x[i], y[i] + w, x[i] + h))
+        crops.append(new_crop)
+    return tuple(crops)
+
+def all_crops(img, size, mult_factor):
+    crops = []
+    img_w, img_h = img.size
+    crop_w, crop_h = size
+    
+    vertical_cuts = ((img_w // crop_w) * mult_factor) + 1
+    horizontal_cuts = ((img_h // crop_h) * mult_factor) + 1
+
+    n_crops = (vertical_cuts+1)*(horizontal_cuts+1)
+
+    h_overlap = int((((vertical_cuts+1)*crop_w) - img_w) / vertical_cuts)
+    v_overlap = int((((horizontal_cuts+1)*crop_h) - img_h) / horizontal_cuts)
+
+    for h_cut in range(0, horizontal_cuts):
+        for v_cut in range(0, vertical_cuts):
+            left = v_cut*(crop_w - h_overlap)
+            top = h_cut*(crop_h - v_overlap)
+            right, bottom = left + crop_w, top + crop_h
+
+            new_crop = img.crop((left, top, right, bottom))
+            crops.append(new_crop)
+    
+    return tuple(crops)
 
 def load_rgb_mean_std(root):
     try:
@@ -94,137 +117,165 @@ class AddGaussianNoise(object):
 
 class NRandomCrop(object):
 
-	def __init__(self, size, n=1, padding=0, pad_if_needed=False):
-		if isinstance(size, numbers.Number):
-			self.size = (int(size), int(size))
-		else:
-			self.size = size
-		self.padding = padding
-		self.pad_if_needed = pad_if_needed
-		self.n = n
+    def __init__(self, size, n=1, padding=0, pad_if_needed=False):
+        if isinstance(size, numbers.Number):
+            self.size = (int(size), int(size))
+        else:
+            self.size = size
+        self.padding = padding
+        self.pad_if_needed = pad_if_needed
+        self.n = n
 
-	@staticmethod
-	def get_params(img, output_size, n):
-		w, h = img.size
-		th, tw = output_size
-		if w == tw and h == th:
-			return 0, 0, h, w
+    @staticmethod
+    def get_params(img, output_size, n):
+        w, h = img.size
+        th, tw = output_size
+        if w == tw and h == th:
+            return 0, 0, h, w
 
-		i_list = [random.randint(0, h - th) for i in range(n)]
-		j_list = [random.randint(0, w - tw) for i in range(n)]
-		return i_list, j_list, th, tw
+        i_list = [random.randint(0, h - th) for i in range(n)]
+        j_list = [random.randint(0, w - tw) for i in range(n)]
+        return i_list, j_list, th, tw
 
-	def __call__(self, img):
-		
-		if self.padding > 0:
-			img = F.pad(img, self.padding)
+    def __call__(self, img):
+        
+        if self.padding > 0:
+            img = F.pad(img, self.padding)
 
-		if self.pad_if_needed and img.size[0] < self.size[1]:
-			img = F.pad(img, (int((1 + self.size[1] - img.size[0]) / 2), 0))
+        if self.pad_if_needed and img.size[0] < self.size[1]:
+            img = F.pad(img, (int((1 + self.size[1] - img.size[0]) / 2), 0))
 
-		if self.pad_if_needed and img.size[1] < self.size[0]:
-			img = F.pad(img, (0, int((1 + self.size[0] - img.size[1]) / 2)))
+        if self.pad_if_needed and img.size[1] < self.size[0]:
+            img = F.pad(img, (0, int((1 + self.size[0] - img.size[1]) / 2)))
 
-		i, j, h, w = self.get_params(img, self.size, self.n)
+        i, j, h, w = self.get_params(img, self.size, self.n)
 
-		return n_random_crops(img, i, j, h, w)
+        return n_random_crops(img, i, j, h, w)
 
-	def __repr__(self):
-		return self.__class__.__name__ + '(size={0}, padding={1})'.format(self.size, self.padding)
+    def __repr__(self):
+        return self.__class__.__name__ + '(size={0}, padding={1})'.format(self.size, self.padding)
+    
+class AllCrops(object):
+    def __init__(self, size, mult_factor):
+        if isinstance(size, numbers.Number):
+            self.size = (int(size), int(size))
+        else:
+            self.size = size
+        self.mult_factor = mult_factor
+        
+    def __call__(self, img):
+        return all_crops(img, self.size, self.mult_factor)
+    
+### ### ###
+### NEW ###
+### ### ###
+class Base_DataLoader():
+    def __init__(self, directory, batch_size, img_crop_size, weighted_sampling=True, phase='train', mult_factor=1, mean=[0, 0, 0], std=[1, 1, 1], shuffle=True):
+        self.directory = directory
+        self.batch_size = batch_size
+        self.img_crop_size = img_crop_size
+        self.weighted_sampling = weighted_sampling
+        self.phase = phase
+        self.mult_factor = mult_factor
+        self.shuffle = shuffle
+        self.mean = mean
+        self.std = std
+    
+    def make_weights_for_balanced_classes(self, images, nclasses):
+        count = [0] * nclasses
+        for item in images:
+            count[item[1]] += 1
+        weight_per_class = [0.] * nclasses
+        N = float(sum(count))
+        for i in range(nclasses):
+            weight_per_class[i] = N / float(count[i])
+        weight = [0] * len(images)
+        for idx, val in enumerate(images):
+            weight[idx] = weight_per_class[val[1]]
+        return weight
 
-class Standard_DataLoader():
-	def __init__(self, directory, batch_size, img_crop_size, weighted_sampling = True, phase = 'train', mean = [0, 0, 0], std = [1, 1, 1], shuffle = True):
-		self.directory = directory
-		self.batch_size = batch_size
-		self.img_crop_size = img_crop_size
-		self.weighted_sampling = weighted_sampling
-		self.phase = phase
-		self.shuffle = shuffle
-		if (mean == [0, 0, 0] and std == [1, 1, 1]):
-			self.mean, self.std = compute_mean_and_std(self.directory)
-		else:
-			self.mean = mean
-			self.std = std
+    def generate_dataset(self):
+        return datasets.ImageFolder(root=self.directory, transform=self.compose_transform())
+    
+    def load_data(self):
+        dataset = self.generate_dataset()
+        if self.phase == 'train' and self.weighted_sampling:
+            weights = self.make_weights_for_balanced_classes(dataset.imgs, len(dataset.classes))
+            weights = torch.DoubleTensor(weights)
+            sampler = WeightedRandomSampler(weights, len(weights))
+            loader = DataLoader(dataset, batch_size=self.batch_size, sampler=sampler)
+        else:
+            loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=self.shuffle)
+        return dataset, loader
 
-	def make_weights_for_balanced_classes(self, images, nclasses): # https://discuss.pytorch.org/t/balanced-sampling-between-classes-with-torchvision-dataloader/2703/3
-		count = [0] * nclasses
-		for item in images:
-			count[item[1]] += 1
-		weight_per_class = [0.] * nclasses
-		N = float(sum(count))
-		for i in range(nclasses):
-			weight_per_class[i] = N/float(count[i])
-		weight = [0] * len(images)
-		for idx, val in enumerate(images):
-			weight[idx] = weight_per_class[val[1]]
-		return weight
+class Train_Test_DataLoader(Base_DataLoader):
+        def compose_transform(self, 
+        cjitter = {'brightness': [0.4, 1.3], 'contrast': 0.6, 'saturation': 0.6,'hue': 0.4}, 
+        cjitter_p = 1, 
+        randaffine = {'degrees': [-10,10], 'translate': [0.2, 0.2], 'scale': [1.3, 1.4], 'shear': 1}, 
+        randpersp = {'distortion_scale': 0.1, 'p': 0.2}, 
+        gray_p = 0.2, 
+        gaussian_blur = {'kernel_size': 3, 'sigma': [0.1, 0.5]},
+        invert_p = 0.05,
+        gaussian_noise = {'mean': 0., 'std': 0.004},
+        gn_p = 0.0,
+        n_val_crops=50):
 
-	def compose_transform(self, 
-		cjitter = {'brightness': [0.4, 1.3], 'contrast': 0.6, 'saturation': 0.6,'hue': 0.4}, 
-		cjitter_p = 1, 
-		randaffine = {'degrees': [-10,10], 'translate': [0.2, 0.2], 'scale': [1.3, 1.4], 'shear': 1}, 
-		randpersp = {'distortion_scale': 0.1, 'p': 0.2}, 
-		gray_p = 0.2, 
-		gaussian_blur = {'kernel_size': 3, 'sigma': [0.1, 0.5]},
-		rand_eras = {'p': 0.5, 'scale': [0.02, 0.33], 'ratio': [0.3, 3.3], 'value': 0}, 
-		invert_p = 0.05,
-		gaussian_noise = {'mean': 0., 'std': 0.004},
-		gn_p = 0.0,
-		n_test_crops = 10):
-
-		randaffine['interpolation'] = randpersp['interpolation'] = T.InterpolationMode.BILINEAR
-		randaffine['fill'] = randpersp['fill'] = [255, 255, 255]
-
-		train_transforms = T.Compose([
-			T.RandomCrop(size = self.img_crop_size, padding = None, pad_if_needed = True, fill = (255, 255, 255), padding_mode = 'constant'),
-			T.RandomApply([T.ColorJitter(**cjitter)], p=cjitter_p),
-			T.RandomAffine(**randaffine),
-			T.RandomPerspective(**randpersp),
-			T.GaussianBlur(**gaussian_blur), 
-			T.RandomGrayscale(gray_p),
-			T.ToTensor(),
-			T.RandomErasing(**rand_eras),
-			T.RandomApply([Invert()], p=invert_p),
-			T.Normalize(self.mean, self.std),
-			T.RandomApply([AddGaussianNoise(**gaussian_noise)], p=gn_p)
-			])	
-
-		val_transforms = T.Compose([
-			T.RandomCrop(size = self.img_crop_size, padding = None, pad_if_needed = True, fill = (255, 255, 255), padding_mode = 'constant'),
-			T.ToTensor(),
-			T.Normalize(self.mean, self.std)
-			])
-
-		test_transforms = T.Compose([
-            NRandomCrop(size = self.img_crop_size, n = n_test_crops, pad_if_needed = True),
-            T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(crop)) for crop in crops]))
+            randaffine['interpolation'] = randpersp['interpolation'] = T.InterpolationMode.BILINEAR
+            randaffine['fill'] = randpersp['fill'] = [255, 255, 255]
+                
+            train_transforms = T.Compose([
+                AllCrops(size=self.img_crop_size, mult_factor=self.mult_factor),
+                T.Lambda(lambda crops: torch.stack([
+                    T.RandomApply([AddGaussianNoise(**gaussian_noise)], p=gn_p)
+                    (T.Normalize(self.mean, self.std)
+                    (T.RandomApply([Invert()], p=invert_p)
+                    (T.ToTensor()
+                    (T.RandomGrayscale(gray_p)
+                    (T.GaussianBlur(**gaussian_blur)
+                    (T.RandomPerspective(**randpersp)
+                    (T.RandomAffine(**randaffine)
+                    (T.RandomApply([T.ColorJitter(**cjitter)], p=cjitter_p)(crop))))))))) for crop in crops]))
             ])
-		
-		if self.phase == 'train':
-			return train_transforms			
-		elif self.phase == 'val':
-			return val_transforms
-		elif self.phase == 'test':
-			return test_transforms
+        
+            val_transforms = T.Compose([
+                NRandomCrop(size = self.img_crop_size, n = n_val_crops, pad_if_needed = True),
+                T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(crop)) for crop in crops]))
+            ])
+        
+            test_transforms = T.Compose([
+                AllCrops(size = self.img_crop_size, mult_factor=self.mult_factor),
+                T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(crop)) for crop in crops]))
+            ])
 
-	def generate_dataset(self):
-		return datasets.ImageFolder(root = self.directory, 
-			transform = self.compose_transform())
+            match self.phase:
+                case 'train': return train_transforms
+                case 'val': return val_transforms
+                case 'test': return test_transforms
 
-	def load_data(self):
-		dataset = self.generate_dataset()
-		if self.phase == 'train':
-			if self.weighted_sampling:
-				weights = self.make_weights_for_balanced_classes(dataset.imgs, len(dataset.classes))
-				weights = torch.DoubleTensor(weights)
-				sampler = WeightedRandomSampler(weights, len(weights))
-				loader = DataLoader(dataset, batch_size = self.batch_size, sampler = sampler)
-			else:
-				loader = DataLoader(dataset, batch_size = self.batch_size, shuffle = self.shuffle)
-		else:
-			loader = DataLoader(dataset, batch_size = self.batch_size, shuffle = self.shuffle)
-		return dataset, loader
+class Confidence_Test_DataLoader(Base_DataLoader):
+        def compose_transform(self, 
+            randaffine = {'degrees': [-10,10], 'translate': [0.2, 0.2], 'scale': [1.3, 1.4], 'shear': 1}, 
+            randpersp = {'distortion_scale': 0.1, 'p': 0.2}, 
+            n_pair_test_crops = 250):
 
+            randaffine['interpolation'] = randpersp['interpolation'] = T.InterpolationMode.BILINEAR
+            randaffine['fill'] = randpersp['fill'] = [255, 255, 255]
+
+            
+            pair_test_scan_transforms = T.Compose([
+                AllCrops(size = self.img_crop_size, mult_factor=self.mult_factor),
+                T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(crop)) for crop in crops]))
+            ])
+    
+            pair_test_randoms_transforms = T.Compose([
+                NRandomCrop(size = self.img_crop_size, n = n_pair_test_crops, pad_if_needed = True),
+                T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(crop)) for crop in crops]))
+            ])
+            
+            match self.phase:
+                case 'scan': return pair_test_scan_transforms
+                case 'randoms': return pair_test_randoms_transforms
 
 ### ############## ###
 ### MODEL TRAINING ###
