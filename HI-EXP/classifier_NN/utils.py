@@ -218,8 +218,7 @@ class Train_Test_DataLoader(Base_DataLoader):
         gaussian_blur = {'kernel_size': 3, 'sigma': [0.1, 0.5]},
         invert_p = 0.05,
         gaussian_noise = {'mean': 0., 'std': 0.004},
-        gn_p = 0.0,
-        n_val_crops=50):
+        gn_p = 0.0):
 
             randaffine['interpolation'] = randpersp['interpolation'] = T.InterpolationMode.BILINEAR
             randaffine['fill'] = randpersp['fill'] = [255, 255, 255]
@@ -239,12 +238,12 @@ class Train_Test_DataLoader(Base_DataLoader):
             ])
         
             val_transforms = T.Compose([
-                NRandomCrop(size = self.img_crop_size, n = n_val_crops, pad_if_needed = True),
+                NRandomCrop(size = self.img_crop_size, n = 10, pad_if_needed = True),
                 T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(crop)) for crop in crops]))
             ])
         
             test_transforms = T.Compose([
-                AllCrops(size = self.img_crop_size, mult_factor=self.mult_factor),
+                NRandomCrop(size = self.img_crop_size, n = 250, pad_if_needed = True),
                 T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(crop)) for crop in crops]))
             ])
 
@@ -312,13 +311,13 @@ def set_optimizer(optim_type, lr_, model):
             momentum = 0.9,
             nesterov = False,
             weight_decay = 0.0001)
-    elif optim_type == 'nesterov':  # Aggiunto successivamente
+    elif optim_type == 'nesterov':
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
             lr = lr_,
             momentum = 0.9,
             nesterov = True,
             weight_decay = 0.0001)
-    elif optim_type == 'adamw':     # Aggiunto successivamente: Speed-Up del Training e riduzione Overfitting
+    elif optim_type == 'adamw':
         optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
             lr = lr_,
             betas = [0.9, 0.999],
@@ -367,22 +366,25 @@ class Trainer():
         for epoch in range(1, self.num_epochs + 1):
             print(f'Epoch {epoch} / {self.num_epochs}')
             self.model.train()
-            epoch_loss = 0.0
-            epoch_acc = 0.0
+            epoch_loss, epoch_acc = 0.0, 0.0
+
             for data, target in tqdm(self.t_set, 'Training'):
-                data = data.to(self.DEVICE)
-                target = target.to(self.DEVICE)
+                _, ncrops, c, h, w = data.size()
+                new_target = list()
+                for t in target: new_target += [t]*ncrops
+                
+                data, target = data.to(self.DEVICE), torch.tensor(new_target).to(self.DEVICE)
                 optimizer.zero_grad()
-                output = self.model(data)
+                output = self.model(data.view(-1, c, h, w))
                 loss = criterion(output,target)
                 true, _ = self.compute_minibatch_accuracy(output, target)
-                epoch_loss += float(loss.item())*len(data)
+                epoch_loss += loss.item()*len(data)
                 epoch_acc += true
                 loss.backward()
                 optimizer.step()
 
             epoch_loss /= len(self.t_set.dataset)
-            epoch_acc /= len(self.t_set.dataset)
+            epoch_acc /= (len(self.t_set.dataset)*ncrops)
             print(f'train_loss: {epoch_loss} - train_accuracy: {epoch_acc}')
             print()
             train_loss.append(epoch_loss)
@@ -390,22 +392,26 @@ class Trainer():
 
             min_loss_t = sr.save_checkpoints(epoch_loss, min_loss_t, self.model, optimizer, 'train')
 
-            epoch_val_loss = 0.0
-            epoch_val_acc = 0.0
+            epoch_val_loss, epoch_val_acc = 0.0, 0.0
             optimizer.zero_grad()
             self.model.eval()
+            
             for data, target in tqdm(self.v_set, 'Validation'):
-                data = data.to(self.DEVICE)
-                target = target.to(self.DEVICE)
+                _, ncrops, c, h, w = data.size()
+                new_target = list()
+                for t in target: new_target += [t]*ncrops
+                
+                data, target = data.to(self.DEVICE), torch.tensor(new_target).to(self.DEVICE)
+
                 with torch.no_grad():
-                    output_val = self.model(data)                    
+                    output_val = self.model(data.view(-1, c, h, w))                    
                 validation_loss = criterion(output_val,target)
                 val_true, _ = self.compute_minibatch_accuracy(output_val, target)                    
                 epoch_val_loss += validation_loss.item()*len(data)
                 epoch_val_acc += val_true
             
             epoch_val_loss /= len(self.v_set.dataset)
-            epoch_val_acc /= len(self.v_set.dataset)
+            epoch_val_acc /= (len(self.v_set.dataset)*ncrops)
             print(f'val_loss: {epoch_val_loss} - val_accuracy: {epoch_val_acc}')
             print()
             val_loss.append(epoch_val_loss)
