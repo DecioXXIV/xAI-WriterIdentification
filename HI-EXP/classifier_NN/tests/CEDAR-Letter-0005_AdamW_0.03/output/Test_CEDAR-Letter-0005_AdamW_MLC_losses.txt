@@ -1,4 +1,0 @@
-The optimal value of loss for the training set is: 0.310
-The optimal value of loss for the validation set is: 0.199
-Epoch corresponding to the optimal value of the training loss: 94\100
-Epoch corresponding to the optimal value of the validation loss: 88\100
