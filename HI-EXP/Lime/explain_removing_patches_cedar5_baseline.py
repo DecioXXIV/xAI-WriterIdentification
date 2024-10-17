@@ -86,8 +86,6 @@ if __name__ == '__main__':
     now = str.replace(now, ':', '.')
     dir_name = TEST_ID + "-" + MODEL_TYPE + "-" + now + "-" + SURROGATE_MODEL
 
-    # dir_name = TEST_ID + "-" + MODEL_TYPE + "-" + "2024.08.09_22.08.27.878021" + "-" + SURROGATE_MODEL
-
     mp_explainer = MaskedPatchesExplainer(classifier=MODEL_NAME, 
                                           test_id=dir_name, 
                                           block_size=(BLOCK_WIDTH, BLOCK_HEIGHT), 
@@ -100,12 +98,15 @@ if __name__ == '__main__':
     ### ################### ###
     ### EXPLANATION PROCESS ###
     ### ################### ###
-    files = ["0001a", "0001b", "0002a", "0002b", "0003a", "0003b"]
+    files = ["0001a", "0001b", "0001c", "0002a", "0002b", "0002c", "0003a", "0003b", "0003c"]
     instances = [f"{f}_{i}_{j}" for f in files for i in range(0, 4) for j in range(0, 7)]
     labels = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
               0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+              0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
               1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
               1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+              1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+              2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
               2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
               2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]
 
@@ -128,3 +129,6 @@ if __name__ == '__main__':
         img = Image.open(f"./data/{instance}.jpg")
         crops_bbxs = get_crops_bbxs(img, final_width=CROP_SIZE, final_height=CROP_SIZE)
         mp_explainer.compute_masked_patches_explanation(instance, label, crops_bbxs, CROP_SIZE, reduction_method="mean", min_eval=10, num_samples_for_baseline=10)
+    
+    with open(f"./explanations/patches_{BLOCK_WIDTH}x_{BLOCK_HEIGHT}_removal/{dir_name}/rgb_stats.pkl", 'wb') as f:
+        pickle.dump([mean, std], f)
