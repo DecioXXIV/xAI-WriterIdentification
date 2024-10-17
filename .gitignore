@@ -174,3 +174,4 @@ HI-EXP/classifier_GB/tests/*/val/*
 HI-EXP/classifier_GB/tests/*/output/checkpoints/*
 HI-EXP/Lime/explanations/*
 HI-EXP/Lime/data/*
+HI-EXP/Lime/mask_images/*
