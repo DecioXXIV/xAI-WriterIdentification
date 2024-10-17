@@ -19,6 +19,8 @@ def get_args():
     parser.add_argument("-model", type=str)
     parser.add_argument("-timestamp", type=str)
     parser.add_argument("-surrogate_model", type=str)
+    parser.add_argument("-mask_rate", type=float)
+    parser.add_argument("-mode", type=str)
 
     return parser.parse_args()
 
@@ -27,17 +29,20 @@ def get_args():
 ### ############### ###
 
 class ImageMaskerFromExp:
-    def __init__(self, instance: str, test_id: str, model: str, timestamp: str, surrogate_model: str):
+    def __init__(self, instance: str, test_id: str, model: str, timestamp: str, surrogate_model: str, mask_rate: float, mode: str):
         self.instance = instance
         self.test_id = test_id
         self.model = model
         self.timestamp = timestamp
         self.surrogate_model = surrogate_model
+        self.mask_rate = mask_rate
+        self.mode = mode
+        self.training_mean = None
     
     def setup_files_for_masking(self):
         os.makedirs(f"./mask_images/{self.test_id}_{self.model}_{self.timestamp}", exist_ok=True)
 
-        self.INSTANCE_TO_MASK_DIRECTORY = f"./mask_images/{self.test_id}_{self.model}_{self.timestamp}/{self.instance}"
+        self.INSTANCE_TO_MASK_DIRECTORY = f"./mask_images/{self.test_id}_{self.model}_{self.timestamp}/{self.instance}_{self.mode}"
         os.makedirs(self.INSTANCE_TO_MASK_DIRECTORY, exist_ok=True)
         os.makedirs(f"{self.INSTANCE_TO_MASK_DIRECTORY}/instances", exist_ok=True)
 
@@ -49,6 +54,8 @@ class ImageMaskerFromExp:
         os.system(f"cp ./mask_images/{self.instance}{self.INSTANCE_FILETYPE} {self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}{self.INSTANCE_FILETYPE}")
 
         EXP_DIR = f"./explanations/patches_75x75_removal/{self.test_id}-{self.model}-{self.timestamp}-{self.surrogate_model}"
+        with open(f"{EXP_DIR}/rgb_stats.pkl", 'rb') as f:
+            self.training_mean, std = pickle.load(f)
         
         all_instances = os.listdir(EXP_DIR)
         filtered_instances = [i for i in all_instances if self.instance in i]
@@ -58,9 +65,7 @@ class ImageMaskerFromExp:
             os.system(f"cp {EXP_DIR}/{i}/{i}_scores.pkl {self.INSTANCE_TO_MASK_DIRECTORY}/instances/{i}/{i}_scores.pkl")
             os.system(f"cp ./explanations/page_level/{i}/{i}_mask_blocks_75x75.png {self.INSTANCE_TO_MASK_DIRECTORY}/instances/{i}/{i}_mask_blocks_75x75.png")
     
-    def mask_full_instance(self, ratios=[0.01, 0.05, 0.1]):
-        print(f"\nBEGINNING OF THE MASKING PROCESS FOR INSTANCE: {self.instance}")
-
+    def mask_full_instance(self):
         full_img = Image.open(f"{self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}{self.INSTANCE_FILETYPE}")
         full_img_width, full_img_height = full_img.size
         self.INSTANCE_WIDTH, self.INSTANCE_HEIGHT = 902, 1279
@@ -91,44 +96,40 @@ class ImageMaskerFromExp:
         full_img_area = full_img_width * full_img_height
         patch_area = 75*75
 
-        patches_to_mask = dict()
-        for ratio in ratios:
-            num_patches_to_mask = int((full_img_area * ratio) / patch_area)
-            patches_to_mask[ratio] = num_patches_to_mask
-        
+        num_patches_to_mask = int((full_img_area * self.mask_rate) / patch_area)        
         masked_patches, idx, end_condition = 0, 0, False
+        
         full_img_to_mask = deepcopy(full_img)
         full_img_to_mask_tensor = T.ToTensor()(full_img_to_mask)
-        os.makedirs(f"{self.INSTANCE_TO_MASK_DIRECTORY}/removed_patches", exist_ok=True)
+        os.makedirs(f"{self.INSTANCE_TO_MASK_DIRECTORY}/removed_patches_{self.mode}", exist_ok=True)
         
         while not end_condition:
-            left, top, right, bottom = df_sorted.iloc[idx]["Coordinates"]
+            left, top, right, bottom = None, None, None, None
+            match self.mode:
+                case "saliency":
+                    left, top, right, bottom = df_sorted.iloc[idx]["Coordinates"]
+                    if (right - left + 1 != 75) or (bottom - top + 1 != 75):
+                        print(f"Skipped patch {idx} due to wrong dimensions")
+                        idx += 1
+                        continue
+                
+                case "random":
+                    left, top = np.random.randint(0, full_img_width-75), np.random.randint(0, full_img_height-75)
+                    right, bottom = left + 75, top + 75
             
-            if (right - left + 1 != 75) or (bottom - top + 1 != 75):
-                print(f"Skipped patch {idx} due to wrong dimensions")
-                idx += 1
-                continue
-            
-            full_img_to_mask_tensor[:, top:bottom, left:right] = 0
+            for c, mean_v in enumerate(self.training_mean):
+                full_img_to_mask_tensor[c, top:bottom, left:right] = mean_v
             idx, masked_patches = idx + 1, masked_patches + 1
-            full_img.crop((left, top, right, bottom)).save(f"{self.INSTANCE_TO_MASK_DIRECTORY}/removed_patches/{self.instance}_removed_patch_{masked_patches}{self.INSTANCE_FILETYPE}")
             
-            if masked_patches == patches_to_mask[ratios[0]]:
+            patch = full_img.crop((left, top, right, bottom))
+            patch.save(f"{self.INSTANCE_TO_MASK_DIRECTORY}/removed_patches_{self.mode}/{self.instance}_removed_patch_{masked_patches}{self.INSTANCE_FILETYPE}")
+            
+            if masked_patches == num_patches_to_mask:
                 full_img_masked_tensor_copy = deepcopy(full_img_to_mask_tensor)
                 full_img_masked = T.ToPILImage()(full_img_masked_tensor_copy)
-                full_img_masked.save(f"{self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}_masked_{ratios[0]}{self.INSTANCE_FILETYPE}")
-                print(f"End of Masking Process for Ratio {ratios[0]} -> Masked Patches: {masked_patches}")
-            elif masked_patches == patches_to_mask[ratios[1]]:
-                full_img_masked_tensor_copy = deepcopy(full_img_to_mask_tensor)
-                full_img_masked = T.ToPILImage()(full_img_masked_tensor_copy)
-                full_img_masked.save(f"{self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}_masked_{ratios[1]}{self.INSTANCE_FILETYPE}")
-                print(f"End of Masking Process for Ratio {ratios[1]} -> Masked Patches: {masked_patches}")
-            elif masked_patches == patches_to_mask[ratios[2]]:
-                full_img_masked_tensor_copy = deepcopy(full_img_to_mask_tensor)
-                full_img_masked = T.ToPILImage()(full_img_masked_tensor_copy)
-                full_img_masked.save(f"{self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}_masked_{ratios[2]}{self.INSTANCE_FILETYPE}")
-                print(f"End of Masking Process for Ratio {ratios[2]} -> Masked Patches: {masked_patches}")
+                full_img_masked.save(f"{self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}_masked_{self.mode}_{self.mask_rate}{self.INSTANCE_FILETYPE}")
                 end_condition = True
+                print(f"End of '{self.mode}' Masking Process for Ratio {self.mask_rate} -> Masked Patches: {masked_patches}")
         
         print(f"END OF THE MASKING PROCESS FOR INSTANCE: {self.instance}")
 
@@ -179,7 +180,10 @@ if __name__ == '__main__':
         test_id=args.test_id,
         model=args.model,
         timestamp=args.timestamp,
-        surrogate_model=args.surrogate_model)
+        surrogate_model=args.surrogate_model,
+        mask_rate=args.mask_rate,
+        mode=args.mode)
     
+    print(f"\nBEGINNING OF THE MASKING PROCESS FOR INSTANCE '{args.instance}' WITH MODE '{args.mode}'")
     masker.setup_files_for_masking()
     masker.mask_full_instance()
