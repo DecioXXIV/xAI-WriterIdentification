@@ -345,7 +345,6 @@ class MaskedPatchesExplainer:
             sorted_filtered_simplified_scores = dict(sorted(filtered_simplified_scores.items(), key=lambda item: item[1], reverse=True))
 
             n_patches_to_remove = 1
-            # for n_patches_to_remove in dict_plots["num_patches_to_remove"]:
             while True:
                 try:
                     erased_crops = return_erased_crops(n_patches_to_remove, num_samples_for_baseline, sorted_filtered_simplified_scores, mask_crop_array, img_crop)
