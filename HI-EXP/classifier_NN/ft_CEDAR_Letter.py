@@ -14,6 +14,7 @@ def get_args():
     parser.add_argument("-classes", type=str)
     parser.add_argument("-train_replicas", type=int)
     parser.add_argument("-random_seed", type=int)
+    parser.add_argument("-epochs", type=int, default=50)
 
     return parser.parse_args()
 
@@ -26,6 +27,7 @@ if __name__ == '__main__':
     CLASSES = args.classes.split(",")
     TRAIN_REPLICAS = args.train_replicas
     RANDOM_SEED = args.random_seed
+    EPOCHS = args.epochs
 
     CWD = os.getcwd()
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -87,15 +89,15 @@ if __name__ == '__main__':
     print(f'Number of trainable parameters: {pytorch_total_params}')
 
     mean_, std_ = load_rgb_mean_std(f"{DATASET_DIR}/train")
-    train_ds = Train_Test_DataLoader(directory=f"{DATASET_DIR}/train", batch_size=64, img_crop_size=CROP_SIZE, weighted_sampling=True, phase='train', mean=mean_, std=std_, shuffle=True)
-    val_ds = Train_Test_DataLoader(directory=f"{DATASET_DIR}/val", batch_size=64, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='val', mean=mean_, std=std_, shuffle=False)
+    train_ds = Train_Test_DataLoader(directory=f"{DATASET_DIR}/train", batch_size=8, img_crop_size=CROP_SIZE, weighted_sampling=True, phase='train', mean=mean_, std=std_, shuffle=True)
+    val_ds = Train_Test_DataLoader(directory=f"{DATASET_DIR}/val", batch_size=8, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='val', mean=mean_, std=std_, shuffle=False)
     tds, t_dl = train_ds.load_data()
     vds, v_dl = val_ds.load_data()
 
     os.mkdir(f"{OUTPUT_DIR}/checkpoints")
     torch.backends.cudnn.benchmark = True
     trainer = Trainer(model=model, t_set=t_dl, v_set=v_dl, DEVICE=DEVICE, optim_type=OPT, lr_=LR, 
-                  model_path=OUTPUT_DIR, history_path=OUTPUT_DIR, test_ID=TEST_ID, num_epochs=50)
+                  model_path=OUTPUT_DIR, history_path=OUTPUT_DIR, test_ID=TEST_ID, num_epochs=EPOCHS)
     trainer()
 
     losses = {'train': [], 'val': []}
