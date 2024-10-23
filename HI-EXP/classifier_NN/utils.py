@@ -369,16 +369,22 @@ class Trainer():
             epoch_loss, epoch_acc = 0.0, 0.0
 
             for data, target in tqdm(self.t_set, 'Training'):
-                _, ncrops, c, h, w = data.size()
-                new_target = list()
-                for t in target: new_target += [t]*ncrops
+                bs, ncrops, c, h, w = data.size()
+                new_target = torch.tensor([t for t in target for _ in range(ncrops)])
                 
-                data, target = data.to(self.DEVICE), torch.tensor(new_target).to(self.DEVICE)
+                data = data.view(-1, c, h, w)
+                
+                perm = torch.randperm(bs*ncrops)
+                data, new_target = data[perm], new_target[perm]
+            
+                data, new_target = data.to(self.DEVICE), new_target.to(self.DEVICE)
+
                 optimizer.zero_grad()
-                output = self.model(data.view(-1, c, h, w))
-                loss = criterion(output,target)
-                true, _ = self.compute_minibatch_accuracy(output, target)
-                epoch_loss += loss.item()*len(data)
+                output = self.model(data)
+                loss = criterion(output, new_target)
+                true, _ = self.compute_minibatch_accuracy(output, new_target)
+               
+                epoch_loss += loss.item()*bs
                 epoch_acc += true
                 loss.backward()
                 optimizer.step()
@@ -397,17 +403,18 @@ class Trainer():
             self.model.eval()
             
             for data, target in tqdm(self.v_set, 'Validation'):
-                _, ncrops, c, h, w = data.size()
-                new_target = list()
-                for t in target: new_target += [t]*ncrops
+                bs, ncrops, c, h, w = data.size()
                 
-                data, target = data.to(self.DEVICE), torch.tensor(new_target).to(self.DEVICE)
+                new_target = torch.tensor([t for t in target for _ in range(ncrops)])
+                data = data.view(-1, c, h, w)
+                    
+                data, new_target = data.to(self.DEVICE), new_target.to(self.DEVICE)
 
                 with torch.no_grad():
-                    output_val = self.model(data.view(-1, c, h, w))                    
-                validation_loss = criterion(output_val,target)
-                val_true, _ = self.compute_minibatch_accuracy(output_val, target)                    
-                epoch_val_loss += validation_loss.item()*len(data)
+                    output_val = self.model(data)                    
+                validation_loss = criterion(output_val, new_target)
+                val_true, _ = self.compute_minibatch_accuracy(output_val, new_target)                    
+                epoch_val_loss += validation_loss.item()*bs
                 epoch_val_acc += val_true
             
             epoch_val_loss /= len(self.v_set.dataset)
