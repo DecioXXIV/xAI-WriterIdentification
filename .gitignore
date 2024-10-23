@@ -164,6 +164,7 @@ cython_debug/
 datasets/*
 HI-EXP/classifier_NN/tests/*
 HI-EXP/classifier_NN/tests_memory/*
+HI-EXP/classifier_NN/comparison_tests/*
 HI-EXP/classifier_SVM/tests/*/train/*
 HI-EXP/classifier_SVM/tests/*/test/*
 HI-EXP/classifier_SVM/tests/*/val/*
