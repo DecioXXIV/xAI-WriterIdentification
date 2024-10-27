@@ -76,7 +76,7 @@ class ImageMaskerFromExp:
         self.H_OVERLAP = int((((vertical_cuts+1)*self.INSTANCE_WIDTH) - full_img_width) / vertical_cuts)
         self.V_OVERLAP = int((((horizontal_cuts+1)*self.INSTANCE_HEIGHT) - full_img_height) / horizontal_cuts)
         
-        if not os.path.exists(f"{self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}_masking_results.xlsx"):
+        if not os.path.exists(f"{self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}_masking_results_{self.mask_rate}.xlsx"):
             print("PHASE 1 -> PATCHES MAPPING")
             instances = os.listdir(f"{self.INSTANCE_TO_MASK_DIRECTORY}/instances")
 
@@ -85,11 +85,11 @@ class ImageMaskerFromExp:
 
             all_results = [item for sublist in results for item in sublist]
             df = pd.DataFrame(all_results, columns=["Instance_Block", "Score", "Coordinates"])
-            df.to_excel(f"{self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}_masking_results.xlsx", index=False, header=False)
+            df.to_excel(f"{self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}_masking_results_{self.mask_rate}.xlsx", index=False, header=False)
         
         else:
             print("PHASE 1 SKIPPED -> PATCHES MAPPING ALREADY AVAILABLE")
-            df = pd.read_excel(f"{self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}_masking_results.xlsx")
+            df = pd.read_excel(f"{self.INSTANCE_TO_MASK_DIRECTORY}/{self.instance}_masking_results_{self.mask_rate}.xlsx")
 
         print("PHASE 2 -> MASKING PROCESS")
         df_sorted = df.sort_values(by="Score", ascending=False)
@@ -101,7 +101,7 @@ class ImageMaskerFromExp:
         
         full_img_to_mask = deepcopy(full_img)
         full_img_to_mask_tensor = T.ToTensor()(full_img_to_mask)
-        os.makedirs(f"{self.INSTANCE_TO_MASK_DIRECTORY}/removed_patches_{self.mode}", exist_ok=True)
+        os.makedirs(f"{self.INSTANCE_TO_MASK_DIRECTORY}/removed_patches_{self.mode}_{self.mask_rate}", exist_ok=True)
         
         while not end_condition:
             left, top, right, bottom = None, None, None, None
@@ -122,7 +122,7 @@ class ImageMaskerFromExp:
             idx, masked_patches = idx + 1, masked_patches + 1
             
             patch = full_img.crop((left, top, right, bottom))
-            patch.save(f"{self.INSTANCE_TO_MASK_DIRECTORY}/removed_patches_{self.mode}/{self.instance}_removed_patch_{masked_patches}{self.INSTANCE_FILETYPE}")
+            patch.save(f"{self.INSTANCE_TO_MASK_DIRECTORY}/removed_patches_{self.mode}_{self.mask_rate}/{self.instance}_removed_patch_{masked_patches}{self.INSTANCE_FILETYPE}")
             
             if masked_patches == num_patches_to_mask:
                 full_img_masked_tensor_copy = deepcopy(full_img_to_mask_tensor)
