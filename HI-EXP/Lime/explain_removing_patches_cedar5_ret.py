@@ -26,7 +26,6 @@ if __name__ == '__main__':
     args = get_args()
     TEST_ID = args.test_id
     MODEL_TYPE = args.model
-    OPT = args.opt
     BLOCK_WIDTH, BLOCK_HEIGHT, CROP_SIZE = args.block_width, args.block_height, args.crop_size
     SURROGATE_MODEL = args.surrogate_model
     LIME_ITERS = args.lime_iters
@@ -86,8 +85,8 @@ if __name__ == '__main__':
     now = str.replace(now, ' ', '_')
     now = str.replace(now, ':', '.')
     dir_name = TEST_ID + "-" + MODEL_TYPE + "-" + now + "-" + SURROGATE_MODEL
-
-    # dir_name = TEST_ID + "-" + MODEL_TYPE + "-" + "2024.08.28_03.02.44.891142" + "-" + SURROGATE_MODEL
+    
+    # dir_name = TEST_ID + "-" + MODEL_TYPE + "-" + "2024.10.19_17.49.48.479638" + "-" + SURROGATE_MODEL
 
     mp_explainer = MaskedPatchesExplainer(classifier=MODEL_NAME, 
                                           test_id=dir_name, 
