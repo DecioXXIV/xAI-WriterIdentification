@@ -11,6 +11,7 @@ def get_args():
     parser.add_argument("-crop_size", type=int)
     parser.add_argument("-opt", type=str)
     parser.add_argument("-lr", type=float)
+    parser.add_argument("-ds_folder", type=str)
     parser.add_argument("-classes", type=str)
     parser.add_argument("-train_replicas", type=int)
     parser.add_argument("-random_seed", type=int)
@@ -24,6 +25,7 @@ if __name__ == '__main__':
     CROP_SIZE = args.crop_size
     OPT = args.opt
     LR = args.lr
+    DS_FOLDER = args.ds_folder
     CLASSES = args.classes.split(",")
     TRAIN_REPLICAS = args.train_replicas
     RANDOM_SEED = args.random_seed
@@ -34,7 +36,7 @@ if __name__ == '__main__':
     MODEL_PATH = CWD + "/cp/Test_3_TL_val_best_model.pth"
     DATASET_DIR = CWD + f"/tests/{TEST_ID}"
     OUTPUT_DIR = CWD + f"/tests/{TEST_ID}/output"
-    SOURCE_DATA_DIR = CWD + "/../../datasets/CEDAR_Letter_set1/final_pages"
+    SOURCE_DATA_DIR = CWD + f"/../../datasets/{DS_FOLDER}/final_pages"
 
     print("PHASE 1 -> DATASET CREATION...")
     if not os.path.exists(DATASET_DIR):
@@ -156,6 +158,6 @@ if __name__ == '__main__':
     model_to_test.load_state_dict(torch.load(cp)['model_state_dict'])
     model_to_test.eval()
 
-    dl = Train_Test_DataLoader(directory=f"{DATASET_DIR}/test", batch_size=4, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='test', mean=mean_, std=std_, shuffle=True)
+    dl = Train_Test_DataLoader(directory=f"{DATASET_DIR}/test", batch_size=2, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='test', mean=mean_, std=std_, shuffle=True)
     produce_classification_reports(dl, DEVICE, model_to_test, OUTPUT_DIR, TEST_ID)
     print("...Testing reports are now available!\n")

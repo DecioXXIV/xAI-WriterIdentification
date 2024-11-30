@@ -11,6 +11,7 @@ def get_args():
     parser.add_argument("-crop_size", type=int)
     parser.add_argument("-opt", type=str)
     parser.add_argument("-lr", type=float)
+    parser.add_argument("-ds_folder", type=str)
     parser.add_argument("-classes", type=str)
     parser.add_argument("-train_replicas", type=int)
     parser.add_argument("-random_seed", type=int)
@@ -24,6 +25,7 @@ if __name__ == '__main__':
     CROP_SIZE = args.crop_size
     OPT = args.opt
     LR = args.lr
+    DS_FOLDER = args.ds_folder
     CLASSES = args.classes.split(",")
     TRAIN_REPLICAS = args.train_replicas
     RANDOM_SEED = args.random_seed
@@ -34,7 +36,7 @@ if __name__ == '__main__':
     MODEL_PATH = CWD + "/cp/Test_3_TL_val_best_model.pth"
     DATASET_DIR = CWD + f"/tests/{TEST_ID}"
     OUTPUT_DIR = CWD + f"/tests/{TEST_ID}/output"
-    SOURCE_DATA_DIR = CWD + "/../../datasets/CVL_set1PNG/final_pages"
+    SOURCE_DATA_DIR = CWD + f"/../../datasets/{DS_FOLDER}/final_pages"
 
     print("PHASE 1 -> DATASET CREATION...")
     if not os.path.exists(DATASET_DIR):
