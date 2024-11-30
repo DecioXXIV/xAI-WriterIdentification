@@ -54,8 +54,8 @@ def model_inference(ret, dataset, models, iteration):
         with torch.no_grad():
             # Models (Baseline and Re-Trained) Inference on Instances
             out_baseline, out_ret = model_baseline(data.view(-1, c, h, w)), model_ret(data.view(-1, c, h, w))
-            # out_baseline, out_ret = F.softmax(out_baseline, dim=1), F.softmax(out_ret, dim=1)
-            out_baseline, out_ret = F.sigmoid(out_baseline), F.sigmoid(out_ret)
+            out_baseline, out_ret = F.softmax(out_baseline, dim=1), F.softmax(out_ret, dim=1)
+            # out_baseline, out_ret = F.sigmoid(out_baseline), F.sigmoid(out_ret)
             
             # For each instance we take into account all the crops
             # Each crops is attributed by following the max value of the model's output

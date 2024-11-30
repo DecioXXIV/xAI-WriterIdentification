@@ -129,8 +129,5 @@ if __name__ == '__main__':
         img = Image.open(f"./data/{instance}.jpg")
         crops_bbxs = get_crops_bbxs(img, final_width=CROP_SIZE, final_height=CROP_SIZE)
         mp_explainer.compute_masked_patches_explanation(instance, label, crops_bbxs, CROP_SIZE, reduction_method="mean", min_eval=10, num_samples_for_baseline=10)
-    
-    # with open(f"./explanations/patches_{BLOCK_WIDTH}x_{BLOCK_HEIGHT}_removal/{dir_name}/rgb_stats.pkl", 'wb') as f:
-    #     pickle.dump([mean, std], f)
         
-    os.system(f"cp {root}/tests/{TEST_ID}/train/rgb_stats.pkl ./explanations/patches_{BLOCK_WIDTH}x_{BLOCK_HEIGHT}_removal/{dir_name}/rgb_stats.pkl")
+    os.system(f"cp {root}/tests/{TEST_ID}/train/rgb_stats.pkl ./explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}/rgb_stats.pkl")

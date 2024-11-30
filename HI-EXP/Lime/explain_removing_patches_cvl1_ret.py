@@ -26,7 +26,6 @@ if __name__ == '__main__':
     args = get_args()
     TEST_ID = args.test_id
     MODEL_TYPE = args.model
-    OPT = args.opt
     BLOCK_WIDTH, BLOCK_HEIGHT, CROP_SIZE = args.block_width, args.block_height, args.crop_size
     SURROGATE_MODEL = args.surrogate_model
     LIME_ITERS = args.lime_iters
@@ -86,8 +85,8 @@ if __name__ == '__main__':
     now = str.replace(now, ' ', '_')
     now = str.replace(now, ':', '.')
     dir_name = TEST_ID + "-" + MODEL_TYPE + "-" + now + "-" + SURROGATE_MODEL
-
-    # dir_name = TEST_ID + "-" + MODEL_TYPE + "-" + "2024.08.22_21.14.56.132395" + "-" + SURROGATE_MODEL
+    
+    # dir_name = TEST_ID + "-" + MODEL_TYPE + "-" + "2024.10.19_17.49.48.479638" + "-" + SURROGATE_MODEL
 
     mp_explainer = MaskedPatchesExplainer(classifier=MODEL_NAME, 
                                           test_id=dir_name, 
@@ -101,21 +100,16 @@ if __name__ == '__main__':
     ### ################### ###
     ### EXPLANATION PROCESS ###
     ### ################### ###
-    files = ["0002-1", "0002-6", "0002-8", "0017-1", "0017-6", "0017-8", "0023-1", "0023-6", "0023-8"]
-    instances = list()
-    for f in files:
-        for i in range(0, 4):
-            for j in range(0, 7):
-                instances.append(f + "_" + str(i) + "_" + str(j))
-    labels = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-              1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-              1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-              0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-              0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-              0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-              2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-              2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-              2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]
+    files = ["0017-3", "0017-7",
+             "0002-3", "0002-7",
+             "0023-3", "0023-7"]
+    instances = [f"{f}_{i}_{j}" for f in files for i in range(0, 2) for j in range(0, 5)]
+    labels = [0,0,0,0,0,0,0,0,0,0,
+              0,0,0,0,0,0,0,0,0,0,
+              1,1,1,1,1,1,1,1,1,1,
+              1,1,1,1,1,1,1,1,1,1,
+              2,2,2,2,2,2,2,2,2,2,
+              2,2,2,2,2,2,2,2,2,2]
 
     # 2 -> Generating the Page Masks (if they don't already exist)
     for instance in instances:

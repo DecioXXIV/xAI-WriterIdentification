@@ -70,7 +70,7 @@ if __name__ == '__main__':
                 os.system(f"cp {SOURCE_DATA_DIR}/{c}/{instance} {DATASET_DIR}/train/{c}/{instance[:-4]}_cp{i+1}.jpg")
         
         for instance in val:
-                os.system(f"cp {SOURCE_DATA_DIR}/{c}/{instance} {DATASET_DIR}/val/{c}/{instance[:-4]}_cp{i+1}.jpg")
+            os.system(f"cp {SOURCE_DATA_DIR}/{c}/{instance} {DATASET_DIR}/val/{c}/{instance[:-4]}_cp{i+1}.jpg")
         
         for instance in test:
             os.system(f"cp {SOURCE_DATA_DIR}/{c}/{instance} {DATASET_DIR}/test/{c}/{instance[:-4]}.jpg")
