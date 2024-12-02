@@ -1,4 +1,4 @@
-import os, cv2
+import os, cv2, re
 import numpy as np
 import PIL
 import imageio
@@ -154,3 +154,24 @@ def extract_image_crops(
     
     # Saves a GIF file which describes the cropping process
     imageio.mimsave(f'./explanations/crop_level/{file_name}/{file_name}_crops.gif', list_images, duration=1.25)
+
+def prepare_instances_to_explain(root, test_id, classes, class_to_idx, phase, cwd):
+    instances, labels = list(), list()
+    base_path = os.path.join(root, "tests", test_id, phase)
+    
+    for c in classes:
+        dir_path = os.path.join(base_path, c)
+        for f in os.listdir(dir_path):
+            writer_id = int(f[0:4])
+            label = class_to_idx[str(writer_id)]
+            
+            new_f = re.sub(r"_cp\d+", "", f)
+            
+            src_path = os.path.join(dir_path, f)
+            dest_path = os.path.join(cwd, "data", new_f)
+            os.system(f"cp {src_path} {dest_path}")
+            
+            instances.append(new_f)
+            labels.append(label)
+    
+    return instances, labels
