@@ -1,10 +1,10 @@
-import torch, os
+import torch, os, pickle
 from image_utils import load_rgb_mean_std
 from model_utils import *
-from explanations_utils import generate_page_mask
+from explanations_utils import prepare_instances_to_explain
 from PIL import Image
 from datetime import datetime
-from masked_patches_explainer import MaskedPatchesExplainer, get_crops_bbxs
+from lime_base_explainer import LimeBaseExplainer, get_crops_bbxs
 from argparse import ArgumentParser
 
 def get_args():
@@ -16,6 +16,7 @@ def get_args():
     parser.add_argument("-crop_size", type=int)
     parser.add_argument("-surrogate_model", type=str)
     parser.add_argument("-lime_iters", type=int)
+    parser.add_argument("-remove_patches", type=str, default="False")
 
     args = parser.parse_args()
 
@@ -29,6 +30,7 @@ if __name__ == '__main__':
     BLOCK_WIDTH, BLOCK_HEIGHT, CROP_SIZE = args.block_width, args.block_height, args.crop_size
     SURROGATE_MODEL = args.surrogate_model
     LIME_ITERS = args.lime_iters
+    REMOVE_PATCHES = args.remove_patches
 
     assert MODEL_TYPE in ['NN', 'SVM', 'GB'], "Model must be in ['NN', 'SVM', 'GB']"
     assert SURROGATE_MODEL in ['LinReg', 'Ridge'], "Surrogate Model must be in ['LinReg', 'Ridge']"
@@ -55,7 +57,10 @@ if __name__ == '__main__':
     else:
         print("Device: CPU")
     
-    num_classes = len(os.listdir(root + f"/tests/{TEST_ID}/test"))
+    classes = os.listdir(root + f"/tests/{TEST_ID}/test")
+    num_classes = len(classes)
+    
+    print("Classes:", classes)
     model = None
 
     match MODEL_TYPE:
@@ -86,7 +91,7 @@ if __name__ == '__main__':
     now = str.replace(now, ':', '.')
     dir_name = TEST_ID + "-" + MODEL_TYPE + "-" + now + "-" + SURROGATE_MODEL
 
-    mp_explainer = MaskedPatchesExplainer(classifier=MODEL_NAME, 
+    mp_explainer = LimeBaseExplainer(classifier=MODEL_NAME, 
                                           test_id=dir_name, 
                                           block_size=(BLOCK_WIDTH, BLOCK_HEIGHT), 
                                           model=model,
@@ -98,36 +103,39 @@ if __name__ == '__main__':
     ### ################### ###
     ### EXPLANATION PROCESS ###
     ### ################### ###
-    files = ["0001a", "0001b", "0001c", "0002a", "0002b", "0002c", "0003a", "0003b", "0003c"]
-    instances = [f"{f}_{i}_{j}" for f in files for i in range(0, 4) for j in range(0, 7)]
-    labels = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-              0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-              0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-              1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-              1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-              1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-              2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-              2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-              2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]
-
-    # 2 -> Generating the Page Masks (if they don't already exist)
-    for instance in instances:
-        if not os.path.exists(f"./explanations/page_level/{instance}/{instance}_mask_blocks_{BLOCK_WIDTH}x{BLOCK_HEIGHT}.png"):
-            generate_page_mask(instance, BLOCK_WIDTH, BLOCK_HEIGHT)
+    instances, labels = list(), list()
     
-    # 3 -> Explanation Process
+    class_to_idx = None
+    with open(root + f"/tests/{TEST_ID}/output/class_to_idx.pkl", "rb") as f:
+        class_to_idx = pickle.load(f)
+    
+    if "ret" not in TEST_ID:
+        train_instances, train_labels = prepare_instances_to_explain(root, TEST_ID, classes, class_to_idx, "train", CWD)
+        instances.extend(train_instances)
+        labels.extend(train_labels)
+    
+    test_instances, test_labels = prepare_instances_to_explain(root, TEST_ID, classes, class_to_idx, "test", CWD)
+    instances.extend(test_instances)
+    labels.extend(test_labels)
+        
+    # 2 -> Explanation Process
     overlap = CROP_SIZE - 25
 
-    for instance, label in zip(instances, labels):
-        print(f"Processing Instance '{instance}' with label '{label}'")
+    for instance_name, label in zip(instances, labels):
+        print(f"Processing Instance '{instance_name}' with label '{label}'")
+        
+        img_path, mask_path = os.path.join(CWD, "data", instance_name), os.path.join(CWD, "def_mask.png")
+        img, mask = Image.open(img_path), Image.open(mask_path)
 
         # 3.1 -> Feature Attribution for the Instance Superpixels (identified by the Page Mask)
-        mp_explainer.compute_superpixel_scores(instance, label, LIME_ITERS, CROP_SIZE, overlap)
-        mp_explainer.visualize_superpixel_scores_outcomes(instance, reduction_method="mean", min_eval=2)
+        mp_explainer.compute_superpixel_scores(img, mask, instance_name, label, LIME_ITERS, CROP_SIZE, overlap)
+        mp_explainer.visualize_superpixel_scores_outcomes(img, mask, instance_name, reduction_method="mean", min_eval=2)
 
         # 3.2 -> Generating the Explanation for the Instance Crops by removing "Relevant", "Misleading" and "Random" Patches
-        img = Image.open(f"./data/{instance}.jpg")
-        crops_bbxs = get_crops_bbxs(img, final_width=CROP_SIZE, final_height=CROP_SIZE)
-        mp_explainer.compute_masked_patches_explanation(instance, label, crops_bbxs, CROP_SIZE, reduction_method="mean", min_eval=10, num_samples_for_baseline=10)
+        if REMOVE_PATCHES == "True":
+            crops_bbxs = get_crops_bbxs(img, final_width=CROP_SIZE, final_height=CROP_SIZE)
+            mp_explainer.compute_masked_patches_explanation(img, mask, instance_name, label, crops_bbxs, CROP_SIZE, reduction_method="mean", min_eval=10, num_samples_for_baseline=10)
+        
+        os.system(f"rm ./data/{instance_name}")
         
     os.system(f"cp {root}/tests/{TEST_ID}/train/rgb_stats.pkl ./explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}/rgb_stats.pkl")
