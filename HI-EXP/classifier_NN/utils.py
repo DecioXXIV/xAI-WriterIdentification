@@ -170,9 +170,10 @@ class AllCrops(object):
 ### NEW ###
 ### ### ###
 class Base_DataLoader():
-    def __init__(self, directory, batch_size, img_crop_size, weighted_sampling=True, phase='train', mult_factor=1, mean=[0, 0, 0], std=[1, 1, 1], shuffle=True):
+    def __init__(self, directory, classes, batch_size, img_crop_size, weighted_sampling=True, phase='train', mult_factor=1, mean=[0, 0, 0], std=[1, 1, 1], shuffle=True):
         self.directory = directory
         self.batch_size = batch_size
+        self.classes = classes
         self.img_crop_size = img_crop_size
         self.weighted_sampling = weighted_sampling
         self.phase = phase
@@ -195,7 +196,16 @@ class Base_DataLoader():
         return weight
 
     def generate_dataset(self):
-        return datasets.ImageFolder(root=self.directory, transform=self.compose_transform())
+        ds = datasets.ImageFolder(root=self.directory, transform=self.compose_transform())
+        
+        class_to_idx, c_id = dict(), 0
+        for c in self.classes:
+            class_to_idx[c] = c_id
+            c_id += 1
+        
+        ds.class_to_idx = class_to_idx
+        
+        return ds
     
     def load_data(self):
         dataset = self.generate_dataset()
@@ -438,8 +448,7 @@ class Trainer():
 ### MODEL EVALUATION ###
 ### ################ ###
 def produce_classification_reports(dl, device, model, output_dir, test_id):    
-    dataset = dl.generate_dataset()
-    _, set_ = dl.load_data()
+    dataset, set_ = dl.load_data()
     
     labels = []
     preds = []
@@ -498,3 +507,6 @@ def produce_classification_reports(dl, device, model, output_dir, test_id):
     
     with open(f'{output_dir}/Test_{test_id}_classification-report_test.txt', 'w') as f:
         f.write(classification_report(labels, preds, target_names=target_names))
+        
+    with open(f"{output_dir}/class_to_idx.pkl", "wb") as f:
+        pkl.dump(dataset.class_to_idx, f)
