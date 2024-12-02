@@ -52,6 +52,7 @@ def generate_page_mask(
         verbose: bool=True,
         copy: bool=True):
     """
+    DEPRECATED!!!
     Args:
         file_name (str): name of the image file (without extension) to be cropped
         block_height (int), block_width (int): dimensions of the mask blocks

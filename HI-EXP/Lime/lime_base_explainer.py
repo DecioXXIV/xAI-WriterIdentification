@@ -174,7 +174,7 @@ def get_crops_bbxs(image, final_width, final_height):
 ### ######################## ###
 ### MASKED PATCHES EXPLAINER ###
 ### ######################## ###
-class MaskedPatchesExplainer:
+class LimeBaseExplainer:
     def __init__(self, 
             classifier: str, 
             test_id: str, 
@@ -198,19 +198,12 @@ class MaskedPatchesExplainer:
         else:
             self.mean_, self.std_ = mean, std
     
-    def compute_superpixel_scores(self, instance_name, label_idx, n_iter, crop_size, overlap):
+    def compute_superpixel_scores(self, base_img, base_mask, instance_name, label_idx, n_iter, crop_size, overlap):
+        instance_name = instance_name[:-4]
         scores_name = f"{instance_name}_scores.pkl"
         output_dir = f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.test_id}/{instance_name}"
         os.makedirs(output_dir, exist_ok=True)
-    
-        img_path = f"./data/{instance_name}.jpg"
-        if f"{instance_name}.jpg" not in os.listdir("./data"):
-            img_path = f"./data/{instance_name}.png"
-        
-        mask_path = f"./explanations/page_level/{instance_name}/{instance_name}_mask_blocks_{self.block_width}x{self.block_height}.png"
 
-        base_img, base_mask = Image.open(img_path), Image.open(mask_path)
-        # base_img = base_img.convert("RGB")
         scores = defaultdict(list)
 
         # Lime Inizialization
@@ -272,18 +265,10 @@ class MaskedPatchesExplainer:
             with open(f"{output_dir}/{scores_name}", "wb") as handle:
                 pickle.dump(scores, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
-    def visualize_superpixel_scores_outcomes(self, instance_name, reduction_method, min_eval):
+    def visualize_superpixel_scores_outcomes(self, base_img, base_mask, instance_name, reduction_method, min_eval):  
+        instance_name = instance_name[:-4]
         scores_name = f"{instance_name}_scores.pkl"
         output_dir = f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.test_id}/{instance_name}"
-        
-        img_path = f"./data/{instance_name}.jpg"
-        if f"{instance_name}.jpg" not in os.listdir("./data"):
-            img_path = f"./data/{instance_name}.png"
-
-        mask_path = f"./explanations/page_level/{instance_name}/{instance_name}_mask_blocks_{self.block_width}x{self.block_height}.png"
-
-        base_img, base_mask = Image.open(img_path), Image.open(mask_path)
-        # base_img = base_img.convert("RGB")
 
         with open(f"{output_dir}/{scores_name}", "rb") as handle:
             scores = pickle.load(handle)
@@ -297,18 +282,10 @@ class MaskedPatchesExplainer:
         except:
             print("Error in ROIs visualization")
 
-    def compute_masked_patches_explanation(self, instance_name, label_idx, crops_bbxs, crop_dim, reduction_method, min_eval, num_samples_for_baseline=10, save_crops=False):
+    def compute_masked_patches_explanation(self, base_img, base_mask, instance_name, label_idx, crops_bbxs, crop_dim, reduction_method, min_eval, num_samples_for_baseline=10, save_crops=False):
+        instance_name = instance_name[:-4]
         scores_name = f"{instance_name}_scores.pkl"
         output_dir = f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.test_id}/{instance_name}"
-    
-        img_path = f"./data/{instance_name}.jpg"
-        if f"{instance_name}.jpg" not in os.listdir("./data"):
-            img_path = f"./data/{instance_name}.png"
-        
-        mask_path = f"./explanations/page_level/{instance_name}/{instance_name}_mask_blocks_{self.block_width}x{self.block_height}.png"
-
-        base_img, base_mask = Image.open(img_path), Image.open(mask_path)
-        # base_img = base_img.convert("RGB")
 
         img_transforms = T.Compose([
             T.ToTensor(),
@@ -416,7 +393,6 @@ class MaskedPatchesExplainer:
                 dict_plots['num_patches_to_remove'].append(n_patches_to_remove)
                 n_patches_to_remove += 1
                 
-
             # Visualization
             fig, ax = plt.subplots(figsize=(10, 10))
             ax.set_xlabel('Number of patches removed [-]')
