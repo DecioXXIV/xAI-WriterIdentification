@@ -91,11 +91,11 @@ if __name__ == '__main__':
     print(f'Number of trainable parameters: {pytorch_total_params}')
 
     mean_, std_ = load_rgb_mean_std(f"{DATASET_DIR}/train")
-    train_ds = Train_Test_DataLoader(directory=f"{DATASET_DIR}/train", batch_size=8, img_crop_size=CROP_SIZE, weighted_sampling=True, phase='train', mean=mean_, std=std_, shuffle=True)
-    val_ds = Train_Test_DataLoader(directory=f"{DATASET_DIR}/val", batch_size=8, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='val', mean=mean_, std=std_, shuffle=False)
+    train_ds = Train_Test_DataLoader(directory=f"{DATASET_DIR}/train", classes=CLASSES, batch_size=8, img_crop_size=CROP_SIZE, weighted_sampling=True, phase='train', mean=mean_, std=std_, shuffle=True)
+    val_ds = Train_Test_DataLoader(directory=f"{DATASET_DIR}/val", classes=CLASSES, batch_size=8, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='val', mean=mean_, std=std_, shuffle=False)
     tds, t_dl = train_ds.load_data()
     vds, v_dl = val_ds.load_data()
-
+    
     os.mkdir(f"{OUTPUT_DIR}/checkpoints")
     torch.backends.cudnn.benchmark = True
     trainer = Trainer(model=model, t_set=t_dl, v_set=v_dl, DEVICE=DEVICE, optim_type=OPT, lr_=LR, 
@@ -158,6 +158,6 @@ if __name__ == '__main__':
     model_to_test.load_state_dict(torch.load(cp)['model_state_dict'])
     model_to_test.eval()
 
-    dl = Train_Test_DataLoader(directory=f"{DATASET_DIR}/test", batch_size=2, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='test', mean=mean_, std=std_, shuffle=True)
+    dl = Train_Test_DataLoader(directory=f"{DATASET_DIR}/test", classes=CLASSES, batch_size=2, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='test', mean=mean_, std=std_, shuffle=True)
     produce_classification_reports(dl, DEVICE, model_to_test, OUTPUT_DIR, TEST_ID)
     print("...Testing reports are now available!\n")
