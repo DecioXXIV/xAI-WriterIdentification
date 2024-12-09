@@ -161,18 +161,16 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-datasets/*
-HI-EXP/classifier_NN/tests/*
-HI-EXP/classifier_NN/tests_memory/*
-HI-EXP/classifier_NN/comparison_tests/*
-HI-EXP/classifier_SVM/tests/*/train/*
-HI-EXP/classifier_SVM/tests/*/test/*
-HI-EXP/classifier_SVM/tests/*/val/*
-HI-EXP/classifier_SVM/tests/*/output/checkpoints/*
-HI-EXP/classifier_GB/tests/*/train/*
-HI-EXP/classifier_GB/tests/*/test/*
-HI-EXP/classifier_GB/tests/*/val/*
-HI-EXP/classifier_GB/tests/*/output/checkpoints/*
-HI-EXP/Lime/explanations/*
-HI-EXP/Lime/data/*
-HI-EXP/Lime/mask_images/*
+datasets/CEDAR_Letter/*
+datasets/CVL/*
+datasets/memory/*
+
+log/*.json
+
+classifiers/classifier_NN/memory/*
+classifiers/classifier_NN/pairs/*
+classifiers/classifier_NN/tests/*
+
+xai/memory/*
+xai/explanations/*
+xai/mask_images/*
