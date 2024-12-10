@@ -1,4 +1,4 @@
-import os, torch, json
+import os, torch, json, itertools
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -49,14 +49,14 @@ def get_instances(root_dir, dataset, classes):
     dataset_dir = f"./../../datasets/{dataset}"
     
     for c in classes:
-        os.makedirs(f"{root_dir}/test_instances/{c}")
+        os.makedirs(f"{root_dir}/test_instances/{c}", exist_ok=True)
         
         test_instances = list()
-        if dataset == "CEDAR-Letter": test_instances = [f for f in os.listdir(f"{dataset_dir}/processed/{c}") if "c" in f]
+        if dataset == "CEDAR_Letter": test_instances = [f for f in os.listdir(f"{dataset_dir}/processed/{c}") if "c" in f]
         if dataset == "CVL": test_instances = [f for f in os.listdir(f"{dataset_dir}/processed/{c}") if ("-3" in f or "-7" in f)]
         
         for f in test_instances:
-            source = f"{dataset_dir}/{c}/{f}"
+            source = f"{dataset_dir}/processed/{c}/{f}"
             dest = f"{root_dir}/test_instances/{c}/{f}"
             
             os.system(f"cp {source} {dest}")
@@ -98,8 +98,12 @@ def models_inference(models, dataset, instances, device, root_dir, classes, mode
             
         for i in range(0, ncrops):
             values = [instances[j], i]
-            for c_idx in enumerate(classes): values.append(out_b[i][c_idx].item())
-            for c_idx in enumerate(classes): values.append(out_r[i][c_idx].item())
+            # for c_idx in enumerate(classes): values.append(out_b[i][c_idx].item())
+            # for c_idx in enumerate(classes): values.append(out_r[i][c_idx].item())
+
+            for c_idx in range(0, len(classes)): values.append(out_b[i][c_idx].item())
+            for c_idx in range(0, len(classes)): values.append(out_r[i][c_idx].item())
+
             values.extend([target.cpu().numpy()[0], max_index_b[i], max_index_r[i]])
             
             df_probs.loc[len(df_probs)] = values
@@ -140,7 +144,7 @@ def produce_delta_reports(instances, root_dir, mode, mult_factor, iter):
     if mode == "scan": df_stats.to_csv(f"{root_dir}/fact_{mult_factor}/comparison_stats.csv", index=False, header=True)
     if mode == "random": df_stats.to_csv(f"{root_dir}/iter_{iter}/comparison_stats.csv", index=False, header=True)
     
-def produce_comparison_reports(idx_to_c, labels, preds_b, preds_r, instances, root_dir, mode, mult_factor, iter):
+def produce_comparison_reports(idx_to_c, labels, preds_b, preds_r, target_names, instances, root_dir, mode, mult_factor, iter):
     label_class_names = [idx_to_c[id_] for id_ in labels]
     pred_b_class_names = [idx_to_c[id_] for id_ in preds_b]
     pred_r_class_names = [idx_to_c[id_] for id_ in preds_r]
@@ -152,18 +156,44 @@ def produce_comparison_reports(idx_to_c, labels, preds_b, preds_r, instances, ro
     df_preds["Pred_B_Label"] = pred_b_class_names
     df_preds["Pred_R_Label"] = pred_r_class_names
     
-    if mode == "scan": df_preds.to_csv(f"{root_dir}/fact_{mult_factor}/comparison_labels.csv", index=False, header=True)
-    if mode == "random": df_preds.to_csv(f"{root_dir}/iter_{iter}/comparison_labels.csv", index=False, header=True)
+    dir = None
+    if mode == "scan": dir = f"{root_dir}/fact_{mult_factor}" 
+    if mode == "random": dir = f"{root_dir}/iter_{iter}"
     
-    produce_confusion_matrix("baseline")
-    produce_confusion_matrix("retrained")
+    df_preds.to_csv(f"{dir}/comparison_labels.csv", index=False, header=True)
+    produce_confusion_matrix(dir, "baseline", label_class_names, pred_b_class_names, target_names)
+    produce_confusion_matrix(dir, "retrained", label_class_names, pred_r_class_names, target_names)
 
-def produce_confusion_matrix(exp_type, label_class_names, pred_class_names, target_names, mode, mult_factor, iter):
-    cm = None
-    if exp_type == "baseline": cm = confusion_matrix()
-    if exp_type == "retrained": cm = confusion_matrix()
+def produce_confusion_matrix(dir, test_type, label_class_names, pred_class_names, target_names):
+    cm = confusion_matrix(label_class_names, pred_class_names, labels=target_names)
+
+    accuracy = np.trace(cm) / float(np.sum(cm))
+    misclass = 1 - accuracy
+
+    cmap = plt.get_cmap('Blues')
+    plt.figure(figsize=(20, 20))
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title('Confusion Matrix')
+    plt.colorbar()
     
-    # CONTINUARE! ###
+    tick_marks = np.arange(len(target_names))
+    plt.xticks(tick_marks, target_names, rotation=45)
+    plt.yticks(tick_marks, target_names)
+    
+    cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+    thresh = cm.max() / 1.5
+    
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, "{:0.2f}".format(cm[i, j]),
+                horizontalalignment="center",
+                color="white" if cm[i, j] > thresh else "black")
+    
+    plt.tight_layout()
+    
+    plt.ylabel('True Label')
+    plt.xlabel('Predicted label\naccuracy = {:0.4f}; misclass = {:0.4f}'.format(accuracy, misclass))
+
+    plt.savefig(f"{dir}/{test_type}_confusion_matrix.png")
 
 def execute_pair_test(model_b, model_r, dl, instances, device, root_dir, classes, mode, mult_factor=None, iter=None):
     dataset_, set_ = dl.load_data()
@@ -171,17 +201,9 @@ def execute_pair_test(model_b, model_r, dl, instances, device, root_dir, classes
     c_to_idx = dataset_.class_to_idx
     idx_to_c = {c_to_idx[k]: k for k in list(c_to_idx.keys())}
     
-    ### MODELS INFERENCE ###
     labels, preds_b, preds_r = models_inference((model_b, model_r), set_, instances, device, root_dir, classes, mode, mult_factor, iter)
-    ### ################ ###
-    
-    ### DELTA REPORTS ###
     produce_delta_reports(instances, root_dir, mode, mult_factor, iter)
-    ### ############# ###
-    
-    ### COMPARISON REPORTS ###
-    produce_comparison_reports(idx_to_c, labels, preds_b, preds_r, instances, root_dir, mode, mult_factor, iter)
-    ### ################## ###
+    produce_comparison_reports(idx_to_c, labels, preds_b, preds_r, target_names, instances, root_dir, mode, mult_factor, iter)
 
 def pair_confidence_test(baseline, retrained, mode, mult_factor, iters):
     CWD = os.getcwd()
@@ -220,12 +242,8 @@ def pair_confidence_test(baseline, retrained, mode, mult_factor, iters):
     if mode == "scan": execute_pair_test(model_baseline, model_retrained, dl, instances, DEVICE, root_dir, CLASSES, mode, mult_factor, None)
     if mode == "random": 
         for iter in (0, iters): execute_pair_test(model_baseline, model_retrained, dl, instances, DEVICE, root_dir, CLASSES, mode, None, iter+1)
-    
-    
-    
-    
-    
-    
+
+def pair_explanations_test(): pass # -> TO DO!
 
 ### #### ###
 ### MAIN ###
@@ -234,7 +252,7 @@ if __name__ == '__main__':
     args = get_args()
     
     if not validate_args(args):
-        print("*** PROBLEMS! ***")
+        print("*** THERE ARE INCONGRUENCES WITHIN THE TEST TO BE COMPARED! ***")
         exit(1)
     
     BASELINE, RETRAINED = args.base_id, args.ret_id
@@ -249,7 +267,7 @@ if __name__ == '__main__':
     print(f"Baseline Experiment: {BASELINE}")
     print(f"Re-Trained Experiment: {RETRAINED}")
     
-    
     pair_confidence_test(BASELINE, RETRAINED, MODE, MULT_FACTOR, ITERS)
-    
     # execute_pair_explanation_test(BASELINE, RETRAINED) -> TO DO!
+
+    torch.cuda.empty_cache()
