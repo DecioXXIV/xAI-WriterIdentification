@@ -1,12 +1,17 @@
 import torch, os, pickle, json
 from PIL import Image
 from datetime import datetime
-from explainers import LimeBaseExplainer, get_crops_bbxs
 from argparse import ArgumentParser
 
-from utils.model_utils import *
-from utils.image_utils import load_rgb_mean_std
-from utils.explanations_utils import get_instances_to_explain
+from .explainers import LimeBaseExplainer, get_crops_bbxs
+
+from .utils.model_utils import *
+from .utils.image_utils import load_rgb_mean_std
+from .utils.explanations_utils import get_instances_to_explain
+
+LOG_ROOT = "./log"
+DATASET_ROOT = "./datasets"
+XAI_ROOT = "./xai"
 
 ### ################# ###
 ### SUPPORT FUNCTIONS ###
@@ -38,7 +43,8 @@ if __name__ == '__main__':
     args = get_args()
     TEST_ID = args.test_id
     CWD = os.getcwd()
-    EXP_METADATA_PATH = os.path.join(CWD, "..", "log", f"{TEST_ID}-metadata.json")
+    # EXP_METADATA_PATH = os.path.join(CWD, "..", "log", f"{TEST_ID}-metadata.json")
+    EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
     
     try: EXP_METADATA = load_metadata(EXP_METADATA_PATH)
     except Exception as e:
@@ -53,15 +59,19 @@ if __name__ == '__main__':
     LIME_ITERS = args.lime_iters
     REMOVE_PATCHES = args.remove_patches
     
-    MODEL_NAME = None
-    match MODEL_TYPE:
-        case 'NN': MODEL_NAME = "classifier_NN"
-        case 'SVM': MODEL_NAME = "classifier_SVM"
-        case 'GB': MODEL_NAME = "classifier_GB"
+    # MODEL_NAME = None
+    # match MODEL_TYPE:
+    #     case 'NN': MODEL_NAME = "classifier_NN"
+    #     case 'SVM': MODEL_NAME = "classifier_SVM"
+    #     case 'GB': MODEL_NAME = "classifier_GB"
 
-    root = CWD + f"/./../classifiers/{MODEL_NAME}"
-    cp_base = root + "/./../cp/Test_3_TL_val_best_model.pth"
-    cp = root + f"/tests/{TEST_ID}/output/checkpoints/Test_{TEST_ID}_MLC_val_best_model.pth"
+    # root = CWD + f"/./../classifiers/{MODEL_NAME}"
+    # cp_base = root + "/./../cp/Test_3_TL_val_best_model.pth"
+    # cp = root + f"/tests/{TEST_ID}/output/checkpoints/Test_{TEST_ID}_MLC_val_best_model.pth"
+
+    CLASSIFIER_ROOT = f"./classifiers/classifier_{MODEL_TYPE}"
+    cp_base = f"{CLASSIFIER_ROOT}/../cp/Test_3_TL_val_best_model.pth"
+    cp = f"{CLASSIFIER_ROOT}/tests/{TEST_ID}/output/checkpoints/Test_{TEST_ID}_MLC_val_best_model.pth"
 
     CLASSES_DATA = EXP_METADATA["CLASSES"]
     classes = list(CLASSES_DATA.keys())
@@ -107,11 +117,13 @@ if __name__ == '__main__':
     print("Model Loaded!")
     print("Classes:", classes)
     
-    mean, std = load_rgb_mean_std(root + f"/tests/{TEST_ID}")
+    # mean, std = load_rgb_mean_std(root + f"/tests/{TEST_ID}")
+    mean, std = load_rgb_mean_std(f"{CLASSIFIER_ROOT}/tests/{TEST_ID}")
+    
 
     explainer = None
     if XAI_ALGORITHM == "LimeBase":    
-        explainer = LimeBaseExplainer(classifier=MODEL_NAME,
+        explainer = LimeBaseExplainer(classifier=f"classifier_{MODEL_TYPE}",
                                         test_id=TEST_ID,
                                         dir_name=dir_name,
                                         block_size=(BLOCK_WIDTH, BLOCK_HEIGHT),
@@ -129,13 +141,14 @@ if __name__ == '__main__':
     except: BASE_ID = TEST_ID
     
     DATASET = EXP_METADATA["DATASET"]
-    SOURCE_DATA_DIR = CWD + f"/../datasets/{DATASET}/processed"
+    # SOURCE_DATA_DIR = CWD + f"/../datasets/{DATASET}/processed"
+    SOURCE_DATA_DIR = f"{DATASET_ROOT}/{DATASET}/processed"
     instances, labels = list(), list()
     
     class_to_idx = None
-    with open(root + f"/tests/{TEST_ID}/output/class_to_idx.pkl", "rb") as f:
-        class_to_idx = pickle.load(f)
-        
+    # with open(root + f"/tests/{TEST_ID}/output/class_to_idx.pkl", "rb") as f: class_to_idx = pickle.load(f)
+    with open(f"{CLASSIFIER_ROOT}/tests/{TEST_ID}/output/class_to_idx.pkl", "rb") as f: class_to_idx = pickle.load(f)
+
     for c, c_type in CLASSES_DATA.items():
         class_source = None
         if c_type == "base": class_source = SOURCE_DATA_DIR + f"/{c}"
@@ -156,13 +169,15 @@ if __name__ == '__main__':
     for instance_name, label in zip(instances, labels):
         if instance_name in EXP_METADATA[f"{XAI_ALGORITHM}_METADATA"]["INSTANCES"]:
             print(f"Skipping Instance '{instance_name}' with label '{label}': already explained!")
-            os.system(f"rm ./data/{instance_name}")
+            os.system(f"rm {XAI_ROOT}/data/{instance_name}")
             continue
         
         print(f"Processing Instance '{instance_name}' with label '{label}'")
         
-        img_path = os.path.join(CWD, "data", instance_name)
-        mask_path = os.path.join(CWD, "def_mask.png")
+        # img_path = os.path.join(CWD, "data", instance_name)
+        # mask_path = os.path.join(CWD, "def_mask.png")
+        img_path = f"{XAI_ROOT}/data/{instance_name}"
+        mask_path = f"{XAI_ROOT}/def_mask.png"
         img, mask = Image.open(img_path), Image.open(mask_path)
 
         # 3.1 -> Feature Attribution for the Instance Superpixels (identified by the Page Mask)
@@ -176,9 +191,11 @@ if __name__ == '__main__':
         
         EXP_METADATA[f"{XAI_ALGORITHM}_METADATA"]["INSTANCES"][f"{instance_name}"] = str(datetime.now())
         with open(EXP_METADATA_PATH, 'w') as jf: json.dump(EXP_METADATA, jf, indent=4)
-        os.system(f"rm ./data/{instance_name}")
+        # os.system(f"rm ./data/{instance_name}")
+        os.system(f"rm {XAI_ROOT}/data/{instance_name}")
     
-    os.system(f"cp {root}/tests/{TEST_ID}/rgb_train_stats.pkl ./explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
+    # os.system(f"cp {root}/tests/{TEST_ID}/rgb_train_stats.pkl ./explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
+    os.system(f"cp {CLASSIFIER_ROOT}/tests/{TEST_ID}/rgb_train_stats.pkl {XAI_ROOT}/explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
     EXP_METADATA[f"{XAI_ALGORITHM}_METADATA"]["EXP_END_TIMESTAMP"] = str(datetime.now())
     with open(EXP_METADATA_PATH, 'w') as jf: json.dump(EXP_METADATA, jf, indent=4)
     

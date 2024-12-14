@@ -2,8 +2,13 @@ import os, json
 from datetime import datetime
 from argparse import ArgumentParser
 from torchvision import transforms as T
-from image_masker import ImageMasker
 from typing import Tuple
+
+from .image_masker import ImageMasker
+
+LOG_ROOT = "./log"
+DATASET_ROOT = "./datasets"
+XAI_ROOT = "./xai"
 
 ### ################# ###
 ### SUPPORT FUNCTIONS ###
@@ -24,7 +29,8 @@ def load_metadata(metadata_path) -> dict:
     except Exception as e: raise FileNotFoundError(f"Error occurred while reading metadata file '{metadata_path}': {e}")
 
 def setup_masking_process(dataset, classes, cwd) -> Tuple[list, list]:
-    dataset_dir = cwd + f"/./../datasets/{dataset}"
+    # dataset_dir = cwd + f"/./../datasets/{dataset}"
+    dataset_dir = f"{DATASET_ROOT}/{dataset}"
     instances, instance_full_paths = list(), list()
     
     for c in classes:
@@ -46,8 +52,9 @@ if __name__ == '__main__':
     args = get_args()
     TEST_ID = args.test_id
     CWD = os.getcwd()
-    EXP_METADATA_PATH = os.path.join(CWD, "..", "log", f"{TEST_ID}-metadata.json")
-    
+    # EXP_METADATA_PATH = os.path.join(CWD, "..", "log", f"{TEST_ID}-metadata.json")
+    EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
+
     try: EXP_METADATA = load_metadata(EXP_METADATA_PATH)
     except Exception as e:
         print(e)

@@ -5,6 +5,8 @@ import imageio
 from PIL import Image
 from copy import deepcopy
 
+XAI_ROOT = "./xai"
+
 ### ############################## ###
 ### EXPLANATIONS SUPPORT FUNCTIONS ###
 ### ############################## ###
@@ -62,10 +64,10 @@ def generate_page_mask(
         None -> saves the mask in the './data/<file_name>' directory
     """
 
-    os.makedirs(f"./explanations/page_level/{file_name}", exist_ok=True)
+    os.makedirs(f"{XAI_ROOT}/explanations/page_level/{file_name}", exist_ok=True)
 
     if not copy:
-        img = Image.open(f"./data/{file_name}.jpg")
+        img = Image.open(f"{XAI_ROOT}/data/{file_name}.jpg")
         img_width, img_height = img.size
 
         if verbose:
@@ -90,10 +92,10 @@ def generate_page_mask(
             mask_width, mask_height = mask.size
             print(f"Mask Image Size: {mask_width}x{mask_height} pixels")
 
-        mask.save(f"./explanations/page_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")
+        mask.save(f"{XAI_ROOT}/explanations/page_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")
     
     else:
-        os.system(f"cp ./def_mask.png ./explanations/page_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")
+        os.system(f"cp {XAI_ROOT}/def_mask.png {XAI_ROOT}/explanations/page_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")
 
 def extract_image_crops(
         file_name:str, 
@@ -113,12 +115,12 @@ def extract_image_crops(
     """
     
     try:
-        page_img = Image.open(f"./data/{file_name}.jpg")
+        page_img = Image.open(f"{XAI_ROOT}/data/{file_name}.jpg")
     except:
         print(f"'{file_name}' not found in './data' directory.")
 
     try:
-        mask_img = Image.open(f"./explanations/crop_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")    
+        mask_img = Image.open(f"{XAI_ROOT}/explanations/crop_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")    
     except:
         print(f"'{file_name}_mask_blocks_{block_width}x{block_height}.png' not found in './explanations/crop_level/{file_name}' directory.")
 
@@ -131,18 +133,18 @@ def extract_image_crops(
 
     list_images, list_masks = list(), list()
 
-    if not os.path.exists(f"./explanations/crop_level/{file_name}/crops"):
-        os.mkdir(f"./explanations/crop_level/{file_name}/crops")
+    if not os.path.exists(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops"):
+        os.mkdir(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops")
     
     for i in range(NR):
         for j in range(NC):
             x0, y0, x1, y1 = GD[f'{i}_{j}']
             
             img_crop = page_img.crop((x0, y0, x1, y1))
-            img_crop.save(f"./explanations/crop_level/{file_name}/crops/{file_name}_{crop_size}_{overlap}_{i}_{j}.jpg")
+            img_crop.save(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops/{file_name}_{crop_size}_{overlap}_{i}_{j}.jpg")
 
             mask_crop = mask_img.crop((x0, y0, x1, y1))
-            mask_crop.save(f"./explanations/crop_level/{file_name}/crops/{file_name}_mask_blocks_{block_width}x{block_height}_{crop_size}_{overlap}_{i}_{j}.png")
+            mask_crop.save(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops/{file_name}_mask_blocks_{block_width}x{block_height}_{crop_size}_{overlap}_{i}_{j}.png")
 
             img_array_copy = deepcopy(img_array)
             mask_array_copy = deepcopy(mask_array)
@@ -154,7 +156,7 @@ def extract_image_crops(
             list_masks.append(mask_array_copy[:, :, ::-1])
     
     # Saves a GIF file which describes the cropping process
-    imageio.mimsave(f'./explanations/crop_level/{file_name}/{file_name}_crops.gif', list_images, duration=1.25)
+    imageio.mimsave(f'{XAI_ROOT}/explanations/crop_level/{file_name}/{file_name}_crops.gif', list_images, duration=1.25)
 
 def get_instances_to_explain(dataset, source, class_to_idx, phase, cwd):
     instances, labels = list(), list()
@@ -170,7 +172,8 @@ def get_instances_to_explain(dataset, source, class_to_idx, phase, cwd):
         writer_id = int(f[0:4])
         label = class_to_idx[str(writer_id)]
         
-        src_path, dest_path = os.path.join(source, f), os.path.join(cwd, "data", f)
+        # src_path, dest_path = os.path.join(source, f), os.path.join(cwd, "data", f)
+        src_path, dest_path = f"{source}/{f}", f"{XAI_ROOT}/data/{f}"
         os.system(f"cp {src_path} {dest_path}")
         
         instances.append(f)

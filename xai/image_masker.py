@@ -4,8 +4,12 @@ import pandas as pd
 import multiprocessing as mp
 from PIL import Image
 from copy import deepcopy
-from explainers import reduce_scores
 from torchvision import transforms as T
+
+from .explainers import reduce_scores
+
+DATASET_ROOT = "./datasets"
+XAI_ROOT = "./xai"
 
 class ImageMasker:    
     def __init__(self,
@@ -30,7 +34,8 @@ class ImageMasker:
         self.full_img_width, self.full_img_height = 0, 0
         self.v_overlap, self.h_overlap = 0, 0
         
-        with open(f"{os.getcwd()}/explanations/patches_{self.block_width}x{self.block_height}_removal/{exp_dir}/rgb_train_stats.pkl", "rb") as f:
+        # with open(f"{os.getcwd()}/explanations/patches_{self.block_width}x{self.block_height}_removal/{exp_dir}/rgb_train_stats.pkl", "rb") as f:
+        with open(f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{exp_dir}/rgb_train_stats.pkl", "rb") as f:
             self.training_mean, _ = pickle.load(f)
         
     def mask_full_instance(self, full_img_name, full_img_path):
@@ -49,14 +54,16 @@ class ImageMasker:
         self.h_overlap = max(1, int((((vert_cuts + 1) * FINAL_WIDTH) - self.full_img_width) / vert_cuts))
         self.v_overlap = max(1, int((((hor_cuts + 1) * FINAL_HEIGHT) - self.full_img_height) / hor_cuts)) 
         
-        CWD = os.getcwd()
-        ROOT_OF_MASKINGS = f"{CWD}/mask_images/{self.exp_dir}"
+        # CWD = os.getcwd()
+        # ROOT_OF_MASKINGS = f"{CWD}/mask_images/{self.exp_dir}"
+        ROOT_OF_MASKINGS = f"{XAI_ROOT}/mask_images/{self.exp_dir}"
         self.INSTANCE_DIR = f"{ROOT_OF_MASKINGS}/{full_img_name}/{self.mode}_{self.mask_rate}"
         os.makedirs(self.INSTANCE_DIR, exist_ok=True)
         
         if not os.path.exists(f"{self.INSTANCE_DIR}/masking_results.xlsx"):
             print("PHASE 1 -> PATCHES MAPPING")
-            instances = [i for i in os.listdir(f"{CWD}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}") if full_img_name in i]
+            # instances = [i for i in os.listdir(f"{CWD}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}") if full_img_name in i]
+            instances = [i for i in os.listdir(f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}") if full_img_name in i]
             
             with mp.Pool(mp.cpu_count()) as pool:
                 results = pool.map(self.find_patches_coordinates, instances)
@@ -119,10 +126,12 @@ class ImageMasker:
         left_b = v_cut * (902 - self.h_overlap)
         top_b = h_cut * (1279 - self.v_overlap)
 
-        mask = Image.open(f"{os.getcwd()}/def_mask.png")
+        # mask = Image.open(f"{os.getcwd()}/def_mask.png")
+        mask = Image.open(f"{XAI_ROOT}/def_mask.png")
         mask_array = np.array(mask)
         
-        with open(f"{os.getcwd()}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}/{i}/{i}_scores.pkl", "rb") as f: 
+        # with open(f"{os.getcwd()}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}/{i}/{i}_scores.pkl", "rb") as f: 
+        with open(f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}/{i}/{i}_scores.pkl", "rb") as f: 
             base_scores = pickle.load(f)
         reduced_scores = reduce_scores(mask, base_scores)
 
@@ -166,7 +175,8 @@ class ImageMasker:
             c = int(inst_name[:-1])
             
             src_path = f"{self.INSTANCE_DIR}/{inst_name}_masked_{self.mode}_{self.mask_rate}{inst_type}"
-            dest_dir = f"{os.getcwd()}/../datasets/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mode}_{self.mask_rate}"
+            # dest_dir = f"{os.getcwd()}/../datasets/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mode}_{self.mask_rate}"
+            dest_dir = f"{DATASET_ROOT}/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mode}_{self.mask_rate}"
             os.makedirs(dest_dir, exist_ok=True)
             os.system(f"mv {src_path} {dest_dir}/{inst_name}{inst_type}")
             

@@ -9,15 +9,17 @@ from collections import defaultdict
 from tqdm import tqdm
 from captum.attr import Lime
 from captum.attr._core.lime import get_exp_kernel_similarity_function
-from captum._utils.models.linear_model import SkLearnLinearRegression, SkLearnLasso, SkLearnRidge
+from captum._utils.models.linear_model import SkLearnLinearRegression, SkLearnRidge
 from captum.attr import visualization as viz
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
 from typing import Tuple
 
-from utils.explanations_utils import create_image_grid
-from utils.image_utils import apply_transforms_crops, load_rgb_mean_std
+from .utils.explanations_utils import create_image_grid
+from .utils.image_utils import apply_transforms_crops, load_rgb_mean_std
+
+XAI_ROOT = "./xai"
 
 ### ################# ###
 ### SUPPORT FUNCTIONS ###
@@ -198,13 +200,16 @@ class LimeBaseExplainer:
         if mean is None and std is None: self.mean_, self.std_ = load_rgb_mean_std(f"./../classifiers/{classifier}/tests/{test_id}")
         else: self.mean_, self.std_ = mean, std
         
-        os.makedirs(f"./data", exist_ok=True)
-        os.makedirs(f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}", exist_ok=True)
+        # os.makedirs(f"./data", exist_ok=True)
+        # os.makedirs(f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}", exist_ok=True)
+        os.makedirs(f"{XAI_ROOT}/data", exist_ok=True)
+        os.makedirs(f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}", exist_ok=True)
     
     def compute_superpixel_scores(self, base_img, base_mask, instance_name, label_idx, n_iter, crop_size, overlap):
         instance_name = instance_name[:-4]
         scores_name = f"{instance_name}_scores.pkl"
-        output_dir = f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}/{instance_name}"
+        # output_dir = f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}/{instance_name}"
+        output_dir = f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}/{instance_name}"
         os.makedirs(output_dir, exist_ok=True)
 
         scores = defaultdict(list)
@@ -267,7 +272,8 @@ class LimeBaseExplainer:
     def visualize_superpixel_scores_outcomes(self, base_img, base_mask, instance_name, reduction_method, min_eval):  
         instance_name = instance_name[:-4]
         scores_name = f"{instance_name}_scores.pkl"
-        output_dir = f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}/{instance_name}"
+        # output_dir = f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}/{instance_name}"
+        output_dir = f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}/{instance_name}"
 
         with open(f"{output_dir}/{scores_name}", "rb") as handle:
             scores = pickle.load(handle)
@@ -284,7 +290,8 @@ class LimeBaseExplainer:
     def compute_masked_patches_explanation(self, base_img, base_mask, instance_name, label_idx, crops_bbxs, reduction_method, min_eval, num_samples_for_baseline=10, save_crops=False):
         instance_name = instance_name[:-4]
         scores_name = f"{instance_name}_scores.pkl"
-        output_dir = f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}/{instance_name}"
+        # output_dir = f"./explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}/{instance_name}"
+        output_dir = f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}/{instance_name}"
 
         img_transforms = T.Compose([
             T.ToTensor(),
