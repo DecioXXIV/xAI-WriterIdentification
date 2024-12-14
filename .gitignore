@@ -167,10 +167,12 @@ datasets/memory/*
 
 log/*.json
 
+bvr_comparisons/tests/*
+
 classifiers/classifier_NN/memory/*
-classifiers/classifier_NN/pairs/*
 classifiers/classifier_NN/tests/*
 
+xai/data/*
 xai/memory/*
 xai/explanations/*
 xai/mask_images/*
