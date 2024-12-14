@@ -3,8 +3,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 from argparse import ArgumentParser
-from model import NN_Classifier
-from utils import Train_Test_DataLoader, Trainer, produce_classification_reports, load_rgb_mean_std
+from .model import NN_Classifier
+from .utils import Train_Test_DataLoader, Trainer, produce_classification_reports, load_rgb_mean_std
+
+LOG_ROOT = "./log"
+DATASET_ROOT = "./datasets"
+CLASSIFIER_ROOT = "./classifiers/classifier_NN"
 
 ### ################# ###
 ### SUPPORT FUNCTIONS ###
@@ -98,8 +102,9 @@ if __name__ == '__main__':
     args = get_args()
     TEST_ID = args.test_id
     CWD = os.getcwd()
-    EXP_METADATA_PATH = os.path.join(CWD, "..", "..", "log", f"{TEST_ID}-metadata.json")
-    
+    # EXP_METADATA_PATH = os.path.join(CWD, "..", "..", "log", f"{TEST_ID}-metadata.json")
+    EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
+
     try: EXP_METADATA = load_metadata(EXP_METADATA_PATH)
     except Exception as e:
         print(e)
@@ -135,13 +140,20 @@ if __name__ == '__main__':
     
     with open(EXP_METADATA_PATH, 'w') as jf: json.dump(EXP_METADATA, jf, indent=4)
     
-    os.makedirs(CWD + f"/tests", exist_ok=True)
+    # os.makedirs(CWD + f"/tests", exist_ok=True)
+    os.makedirs(f"{CLASSIFIER_ROOT}/tests", exist_ok=True)
     
-    SOURCE_DATA_DIR = CWD + f"/../../datasets/{DATASET}/processed"
-    EXP_DIR = CWD + f"/tests/{TEST_ID}"
-    OUTPUT_DIR = CWD + f"/tests/{TEST_ID}/output"
+    # SOURCE_DATA_DIR = CWD + f"/../../datasets/{DATASET}/processed"
+    # EXP_DIR = CWD + f"/tests/{TEST_ID}"
+    # OUTPUT_DIR = CWD + f"/tests/{TEST_ID}/output"
+    # DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # MODEL_PATH = CWD + "/../cp/Test_3_TL_val_best_model.pth"
+
+    SOURCE_DATA_DIR = f"{DATASET_ROOT}/{DATASET}/processed"
+    EXP_DIR = f"{CLASSIFIER_ROOT}/tests/{TEST_ID}"
+    OUTPUT_DIR = f"{CLASSIFIER_ROOT}/tests/{TEST_ID}/output"
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    MODEL_PATH = CWD + "/../cp/Test_3_TL_val_best_model.pth"
+    MODEL_PATH = f"{CLASSIFIER_ROOT}/../cp/Test_3_TL_val_best_model.pth"
     
     create_directories(EXP_DIR, CLASSES_DATA.keys())
     

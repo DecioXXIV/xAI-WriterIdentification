@@ -12,6 +12,8 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 from sklearn.metrics import classification_report, confusion_matrix
 
+LOG_ROOT = "./log"
+
 ### ####### ###
 ### DATASET ###
 ### ####### ###
@@ -461,7 +463,8 @@ class Trainer():
             
             if "EPOCHS_COMPLETED" not in self.exp_metadata: self.exp_metadata["EPOCHS_COMPLETED"] = 1
             else: self.exp_metadata["EPOCHS_COMPLETED"] = self.exp_metadata["EPOCHS_COMPLETED"] + 1
-            with open(f"./../../log/{self.test_ID}-metadata.json", 'w') as jf: json.dump(self.exp_metadata, jf, indent=4)
+            # with open(f"./../../log/{self.test_ID}-metadata.json", 'w') as jf: json.dump(self.exp_metadata, jf, indent=4)
+            with open(f"{LOG_ROOT}/{self.test_ID}-metadata.json", 'w') as jf: json.dump(self.exp_metadata, jf, indent=4)
 
             sr.save_pkl('train_loss', train_loss)
             sr.save_pkl('val_loss', val_loss)
