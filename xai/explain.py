@@ -42,8 +42,6 @@ if __name__ == '__main__':
     torch.cuda.empty_cache()
     args = get_args()
     TEST_ID = args.test_id
-    CWD = os.getcwd()
-    # EXP_METADATA_PATH = os.path.join(CWD, "..", "log", f"{TEST_ID}-metadata.json")
     EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
     
     try: EXP_METADATA = load_metadata(EXP_METADATA_PATH)
@@ -58,16 +56,6 @@ if __name__ == '__main__':
     SURROGATE_MODEL = args.surrogate_model
     LIME_ITERS = args.lime_iters
     REMOVE_PATCHES = args.remove_patches
-    
-    # MODEL_NAME = None
-    # match MODEL_TYPE:
-    #     case 'NN': MODEL_NAME = "classifier_NN"
-    #     case 'SVM': MODEL_NAME = "classifier_SVM"
-    #     case 'GB': MODEL_NAME = "classifier_GB"
-
-    # root = CWD + f"/./../classifiers/{MODEL_NAME}"
-    # cp_base = root + "/./../cp/Test_3_TL_val_best_model.pth"
-    # cp = root + f"/tests/{TEST_ID}/output/checkpoints/Test_{TEST_ID}_MLC_val_best_model.pth"
 
     CLASSIFIER_ROOT = f"./classifiers/classifier_{MODEL_TYPE}"
     cp_base = f"{CLASSIFIER_ROOT}/../cp/Test_3_TL_val_best_model.pth"
@@ -117,7 +105,6 @@ if __name__ == '__main__':
     print("Model Loaded!")
     print("Classes:", classes)
     
-    # mean, std = load_rgb_mean_std(root + f"/tests/{TEST_ID}")
     mean, std = load_rgb_mean_std(f"{CLASSIFIER_ROOT}/tests/{TEST_ID}")
     
 
@@ -141,12 +128,10 @@ if __name__ == '__main__':
     except: BASE_ID = TEST_ID
     
     DATASET = EXP_METADATA["DATASET"]
-    # SOURCE_DATA_DIR = CWD + f"/../datasets/{DATASET}/processed"
     SOURCE_DATA_DIR = f"{DATASET_ROOT}/{DATASET}/processed"
     instances, labels = list(), list()
     
     class_to_idx = None
-    # with open(root + f"/tests/{TEST_ID}/output/class_to_idx.pkl", "rb") as f: class_to_idx = pickle.load(f)
     with open(f"{CLASSIFIER_ROOT}/tests/{TEST_ID}/output/class_to_idx.pkl", "rb") as f: class_to_idx = pickle.load(f)
 
     for c, c_type in CLASSES_DATA.items():
@@ -174,8 +159,6 @@ if __name__ == '__main__':
         
         print(f"Processing Instance '{instance_name}' with label '{label}'")
         
-        # img_path = os.path.join(CWD, "data", instance_name)
-        # mask_path = os.path.join(CWD, "def_mask.png")
         img_path = f"{XAI_ROOT}/data/{instance_name}"
         mask_path = f"{XAI_ROOT}/def_mask.png"
         img, mask = Image.open(img_path), Image.open(mask_path)
@@ -191,10 +174,8 @@ if __name__ == '__main__':
         
         EXP_METADATA[f"{XAI_ALGORITHM}_METADATA"]["INSTANCES"][f"{instance_name}"] = str(datetime.now())
         with open(EXP_METADATA_PATH, 'w') as jf: json.dump(EXP_METADATA, jf, indent=4)
-        # os.system(f"rm ./data/{instance_name}")
         os.system(f"rm {XAI_ROOT}/data/{instance_name}")
     
-    # os.system(f"cp {root}/tests/{TEST_ID}/rgb_train_stats.pkl ./explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
     os.system(f"cp {CLASSIFIER_ROOT}/tests/{TEST_ID}/rgb_train_stats.pkl {XAI_ROOT}/explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
     EXP_METADATA[f"{XAI_ALGORITHM}_METADATA"]["EXP_END_TIMESTAMP"] = str(datetime.now())
     with open(EXP_METADATA_PATH, 'w') as jf: json.dump(EXP_METADATA, jf, indent=4)
