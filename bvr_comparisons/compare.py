@@ -32,7 +32,7 @@ def get_args():
     parser.add_argument("-mode", type=str, choices=["scan", "random"])
     parser.add_argument("-mult_factor", type=int, default=1)
     parser.add_argument("-iters", type=int, default=3)
-    parser.add_argument("-xai_algorithm", type=str, default="LimeBase")
+    parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase", "GLimeBinomial"])
     
     return parser.parse_args()
 
@@ -74,6 +74,7 @@ def get_instances(root_dir, dataset, classes):
             os.system(f"cp {source} {dest}")
 
 def models_inference(models, dataset, instances, device, root_dir, classes, mode, mult_factor, iter):
+    torch.backends.cudnn.benchmark = True
     labels, preds_b, preds_r = list(), list(), list()
     columns = ["Instance", "Crop_No"]
     for c in classes: columns.append(f"P{c}_Baseline")
@@ -205,11 +206,12 @@ def produce_confusion_matrix(dir, test_type, label_class_names, pred_class_names
     plt.savefig(f"{dir}/{test_type}_confusion_matrix.png")
 
 def produce_explanation_comparison(dir, instance_name, b_scores, r_scores):
+    os.makedirs(f"{dir}/{instance_name}", exist_ok=True)
+    
     diff = np.abs(b_scores - r_scores)
 
     plt_fig = Figure(figsize=(6,6))
     plt_axis = plt_fig.subplots()
-
     plt_axis.xaxis.set_ticks_position("none")
     plt_axis.yaxis.set_ticks_position("none")
     plt_axis.set_xticklabels([])
@@ -218,16 +220,21 @@ def produce_explanation_comparison(dir, instance_name, b_scores, r_scores):
 
     cmap = LinearSegmentedColormap.from_list("Ex", ["white", "orange", "red", "magenta"])
     cmap.set_bad(color="black")
-    vmin, vmax = 0, 1
+    vmin, vmax = 0, 2
     heat_map = plt_axis.imshow(diff, cmap=cmap, vmin=vmin, vmax=vmax)
 
     axis_separator = make_axes_locatable(plt_axis)
     colorbar_axis = axis_separator.append_axes("bottom", size="5%", pad=0.1)
     plt_fig.colorbar(heat_map, orientation="horizontal", cax=colorbar_axis)
 
-    plt_fig.savefig(f"{dir}/{instance_name}_exp_comparison.png")
+    plt_fig.savefig(f"{dir}/{instance_name}/{instance_name}_exp_comparison.png")
+    
+    ### TODO! New Metrics to Compare the Explanations
 
 def execute_pair_confidence_test(model_b, model_r, dl, instances, device, root_dir, classes, mode, mult_factor=None, iter=None):
+    if mode == "scan": print(f"Executing '{mode}' Confidence Pair Test with 'mult_factor' = {mult_factor}")
+    if mode == "random": print(f"Executing Iteration {iter} of '{mode}' Confidence Pair Test")
+    
     dataset_, set_ = dl.load_data()
     target_names = list(dataset_.class_to_idx.keys())
     c_to_idx = dataset_.class_to_idx
@@ -241,10 +248,6 @@ def execute_pair_confidence_test(model_b, model_r, dl, instances, device, root_d
 ### PRINCIPAL FUNCTIONS ###
 ### ################### ###
 def pair_confidence_test(baseline, retrained, mode, mult_factor, iters):
-    # CWD = os.getcwd()
-    # BASELINE_METADATA_PATH = CWD + f"/../log/{baseline}-metadata.json"
-    # RETRAINED_METADATA_PATH = CWD + f"/../log/{retrained}-metadata.json"
-
     BASELINE_METADATA_PATH = f"{LOG_ROOT}/{baseline}-metadata.json"
     RETRAINED_METADATA_PATH =  f"{LOG_ROOT}/{retrained}-metadata.json"
     
@@ -256,9 +259,6 @@ def pair_confidence_test(baseline, retrained, mode, mult_factor, iters):
 
     B_MODEL_TYPE, R_MODEL_TYPE = BASELINE_METADATA["MODEL_TYPE"], RETRAINED_METADATA["MODEL_TYPE"]
     
-    # cp = CWD + "/../classifiers/cp/Test_3_TL_val_best_model.pth"
-    # cp_baseline = CWD + f"/../classifiers/classifier_{B_MODEL_TYPE}/tests/{BASELINE}/output/checkpoints/Test_{BASELINE}_MLC_val_best_model.pth"
-    # cp_ret = CWD + f"/../classifiers/classifier_{R_MODEL_TYPE}/tests/{RETRAINED}/output/checkpoints/Test_{RETRAINED}_MLC_val_best_model.pth"
     CLASSIFIER_ROOT = f"./classifiers/classifier_{B_MODEL_TYPE}"
     cp = f"{CLASSIFIER_ROOT}/../cp/Test_3_TL_val_best_model.pth"
     cp_baseline = f"{CLASSIFIER_ROOT}/tests/{BASELINE}/output/checkpoints/Test_{BASELINE}_MLC_val_best_model.pth"
@@ -270,7 +270,6 @@ def pair_confidence_test(baseline, retrained, mode, mult_factor, iters):
     model_baseline = model_baseline.to(DEVICE)
     model_retrained = model_retrained.to(DEVICE)
     
-    # root_dir = CWD + f"/./tests/{baseline}/VERSUS-{retrained}/confidence/{mode}"
     root_dir = f"{PAIR_TEST_ROOT}/tests/{baseline}/VERSUS-{retrained}/confidence/{mode}"
     os.makedirs(root_dir, exist_ok=True)
     
@@ -278,7 +277,6 @@ def pair_confidence_test(baseline, retrained, mode, mult_factor, iters):
     CLASSES = list(BASELINE_METADATA["CLASSES"].keys())
     get_instances(root_dir, DATASET, CLASSES)
     
-    # mean_, std_ = load_rgb_mean_std(f"{CWD}/../classifiers/classifiers_{B_MODEL_TYPE}/tests/{BASELINE}")
     mean_, std_ = load_rgb_mean_std(f"{CLASSIFIER_ROOT}/tests/{BASELINE}")
     
     dl = Confidence_Test_DataLoader(f"{root_dir}/test_instances", CLASSES, 1, CROP_SIZE, False, mode, mult_factor, mean_, std_, False)
@@ -287,7 +285,7 @@ def pair_confidence_test(baseline, retrained, mode, mult_factor, iters):
     
     if mode == "scan": execute_pair_confidence_test(model_baseline, model_retrained, dl, instances, DEVICE, root_dir, CLASSES, mode, mult_factor, None)
     if mode == "random": 
-        for iter in (0, iters): execute_pair_confidence_test(model_baseline, model_retrained, dl, instances, DEVICE, root_dir, CLASSES, mode, None, iter+1)
+        for iter in range(0, iters): execute_pair_confidence_test(model_baseline, model_retrained, dl, instances, DEVICE, root_dir, CLASSES, mode, None, iter+1)
     
     os.system(f"rm -r {root_dir}/test_instances")
 
@@ -304,13 +302,11 @@ def pair_explanations_test(baseline, retrained, xai_algorithm):
     BLOCK_W = BASELINE_METADATA[f"{xai_algorithm}_METADATA"]["BLOCK_DIM"]["WIDTH"]
     BLOCK_H = BASELINE_METADATA[f"{xai_algorithm}_METADATA"]["BLOCK_DIM"]["HEIGHT"]
 
-    root_dir = f"{PAIR_TEST_ROOT}/tests/{baseline}/VERSUS-{retrained}/explanations"
+    root_dir = f"{PAIR_TEST_ROOT}/tests/{baseline}/VERSUS-{retrained}/explanations/{xai_algorithm}"
     os.makedirs(root_dir, exist_ok=True)
 
     test_instances = os.listdir(f"{XAI_ROOT}/explanations/patches_{BLOCK_W}x{BLOCK_H}_removal/{R_EXP_DIR}")
     test_instances.remove("rgb_train_stats.pkl")
-
-    print(test_instances)
 
     for i in test_instances:
         base_scores_path = f"{XAI_ROOT}/explanations/patches_{BLOCK_W}x{BLOCK_H}_removal/{B_EXP_DIR}/{i}/{i}_scores.pkl"
@@ -347,14 +343,15 @@ if __name__ == '__main__':
     MULT_FACTOR, ITERS = args.mult_factor, args.iters
     XAI_ALGORITHM = args.xai_algorithm
     
-    match MODE:
-        case 'scan': print(f"*** BEGINNING OF PAIR TEST -> '{MODE}' MODE, MULT_FACTOR = {MULT_FACTOR}***")
-        case 'random': print(f"*** BEGINNING OF PAIR TEST -> '{MODE}' MODE, ITERS = {ITERS}***")
-    
     print(f"Baseline Experiment: {BASELINE}")
     print(f"Re-Trained Experiment: {RETRAINED}")
     
-    if SUBJECT == "confidence": pair_confidence_test(BASELINE, RETRAINED, MODE, MULT_FACTOR, ITERS)
-    if SUBJECT == "explanations": pair_explanations_test(BASELINE, RETRAINED, XAI_ALGORITHM)
+    if SUBJECT == "confidence":
+        if MODE == "scan": print(f"*** BEGINNING OF CONFIDENCE PAIR TEST -> '{MODE}' MODE, MULT_FACTOR = {MULT_FACTOR} ***")
+        if MODE == "random": print(f"*** BEGINNING OF CONFIDENCE PAIR TEST -> '{MODE}' MODE, ITERS = {ITERS} ***")
+        pair_confidence_test(BASELINE, RETRAINED, MODE, MULT_FACTOR, ITERS)
+    if SUBJECT == "explanations":
+        print(f"*** BEGINNING OF EXPLANATIONS PAIR TEST -> '{XAI_ALGORITHM}' ALGORITHM") 
+        pair_explanations_test(BASELINE, RETRAINED, XAI_ALGORITHM)
 
     torch.cuda.empty_cache()
