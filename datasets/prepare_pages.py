@@ -24,12 +24,6 @@ def load_metadata(metadata_path) -> dict:
 def process_images(class_name, class_type, dataset, test_id, model_type, final_width, final_height, vert_mult, hor_mult):
     # Set 'source' and 'destination' for the current class, basing on its 'class_type'
     class_source, class_dest = None, None
-    # if class_type == "base": 
-    #     class_source = f"./{dataset}/{class_name}"
-    #     class_dest = f"./{dataset}/processed/{class_name}"
-    # else: 
-    #     class_source = f"./{dataset}/{class_name}-{test_id}_{model_type}_{class_type}"
-    #     class_dest = f"./{dataset}/processed/{class_name}-{test_id}_{model_type}_{class_type}"
     if class_type == "base": 
         class_source = f"{DATASET_ROOT}/{dataset}/{class_name}"
         class_dest = f"{DATASET_ROOT}/{dataset}/processed/{class_name}"
@@ -93,9 +87,8 @@ def copy_not_masked_test_instances(class_name, class_type, dataset, test_id, mod
 ### MAIN ###
 ### #### ###            
 if __name__ == '__main__':
-    TEST_ID = get_args().test_id
-    CWD = os.getcwd()
-    # EXP_METADATA_PATH = os.path.join(CWD, "..", "log", f"{TEST_ID}-metadata.json")
+    args = get_args()
+    TEST_ID = args.test_id
     EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
     
     try: EXP_METADATA = load_metadata(EXP_METADATA_PATH)
@@ -131,7 +124,6 @@ if __name__ == '__main__':
                        FINAL_HEIGHT, VERT_MULT_FACT, HOR_MULT_FACT)
     
     EXP_METADATA["DATA_PREP_TIMESTAMP"] = str(datetime.now())
-    # with open(f"./../log/{TEST_ID}-metadata.json", 'w') as jf: json.dump(EXP_METADATA, jf, indent=4)
     with open(f"{LOG_ROOT}/{TEST_ID}-metadata.json", 'w') as jf: json.dump(EXP_METADATA, jf, indent=4)
     
     print("***END OF DATA PREPARATION PROCESS ***\n")
