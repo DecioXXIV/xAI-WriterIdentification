@@ -158,7 +158,7 @@ def extract_image_crops(
     # Saves a GIF file which describes the cropping process
     imageio.mimsave(f'{XAI_ROOT}/explanations/crop_level/{file_name}/{file_name}_crops.gif', list_images, duration=1.25)
 
-def get_instances_to_explain(dataset, source, class_to_idx, phase, cwd):
+def get_instances_to_explain(dataset, source, class_to_idx, phase):
     instances, labels = list(), list()
     
     for f in os.listdir(source):
@@ -172,7 +172,6 @@ def get_instances_to_explain(dataset, source, class_to_idx, phase, cwd):
         writer_id = int(f[0:4])
         label = class_to_idx[str(writer_id)]
         
-        # src_path, dest_path = os.path.join(source, f), os.path.join(cwd, "data", f)
         src_path, dest_path = f"{source}/{f}", f"{XAI_ROOT}/data/{f}"
         os.system(f"cp {src_path} {dest_path}")
         

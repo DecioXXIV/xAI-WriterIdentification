@@ -140,11 +140,11 @@ if __name__ == '__main__':
         else: class_source = SOURCE_DATA_DIR + f"/{c}-{BASE_ID}_{MODEL_TYPE}_{c_type}"
         
         if "ret" not in TEST_ID:
-            train_instances, train_labels = get_instances_to_explain(DATASET, class_source, class_to_idx, "train", CWD)
+            train_instances, train_labels = get_instances_to_explain(DATASET, class_source, class_to_idx, "train")
             instances.extend(train_instances)
             labels.extend(train_labels)
         
-        test_instances, test_labels = get_instances_to_explain(DATASET, class_source, class_to_idx, "test", CWD)
+        test_instances, test_labels = get_instances_to_explain(DATASET, class_source, class_to_idx, "test")
         instances.extend(test_instances)
         labels.extend(test_labels)
         

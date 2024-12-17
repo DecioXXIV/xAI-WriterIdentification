@@ -81,8 +81,8 @@ def plot_metric(metric):
     best_val_epoch = np.where(np.array(values['val']) == best_val_metric)[0][0] + 1
     
     with open(f'{OUTPUT_DIR}/Test_{TEST_ID}_MLC_{metric}.txt', 'w') as f:
-        f.write(f"The optimal value of {metric} for the training set is: {round(best_train_metric)}")
-        f.write(f"The optimal value of {metric} for the validation set is: {round(best_val_metric)}")
+        f.write(f"The optimal value of {metric} for the training set is: {round(best_train_metric, 3)}\n")
+        f.write(f"The optimal value of {metric} for the validation set is: {round(best_val_metric, 3)}\n")
         f.write(f"Epoch corresponding to the optimal value of the training {metric}: {best_train_epoch}\\{len(values['train'])}\n")
         f.write(f"Epoch corresponding to the optimal value of the validation {metric}: {best_val_epoch}\\{len(values['val'])}\n")
     
