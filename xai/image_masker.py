@@ -21,6 +21,7 @@ class ImageMasker:
                 mode: str,
                 block_width: int,
                 block_height: int,
+                xai_algorithm: str,
                 exp_metadata: dict):
         self.instances = instances
         self.paths = paths
@@ -29,12 +30,12 @@ class ImageMasker:
         self.mask_rate = mask_rate
         self.mode = mode
         self.block_width, self.block_height = block_width, block_height
+        self.xai_algorithm = xai_algorithm
         self.exp_metadata = exp_metadata
         
         self.full_img_width, self.full_img_height = 0, 0
         self.v_overlap, self.h_overlap = 0, 0
         
-        # with open(f"{os.getcwd()}/explanations/patches_{self.block_width}x{self.block_height}_removal/{exp_dir}/rgb_train_stats.pkl", "rb") as f:
         with open(f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{exp_dir}/rgb_train_stats.pkl", "rb") as f:
             self.training_mean, _ = pickle.load(f)
         
@@ -54,15 +55,12 @@ class ImageMasker:
         self.h_overlap = max(1, int((((vert_cuts + 1) * FINAL_WIDTH) - self.full_img_width) / vert_cuts))
         self.v_overlap = max(1, int((((hor_cuts + 1) * FINAL_HEIGHT) - self.full_img_height) / hor_cuts)) 
         
-        # CWD = os.getcwd()
-        # ROOT_OF_MASKINGS = f"{CWD}/mask_images/{self.exp_dir}"
         ROOT_OF_MASKINGS = f"{XAI_ROOT}/mask_images/{self.exp_dir}"
         self.INSTANCE_DIR = f"{ROOT_OF_MASKINGS}/{full_img_name}/{self.mode}_{self.mask_rate}"
         os.makedirs(self.INSTANCE_DIR, exist_ok=True)
         
         if not os.path.exists(f"{self.INSTANCE_DIR}/masking_results.xlsx"):
             print("PHASE 1 -> PATCHES MAPPING")
-            # instances = [i for i in os.listdir(f"{CWD}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}") if full_img_name in i]
             instances = [i for i in os.listdir(f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}") if full_img_name in i]
             
             with mp.Pool(mp.cpu_count()) as pool:
@@ -71,11 +69,11 @@ class ImageMasker:
             all_results = [item for sublist in results for item in sublist]
             df = pd.DataFrame(all_results, columns=["Instance_Block", "Score", "Coordinates"])
             df = df.sort_values(by="Score", ascending=False)
-            df.to_excel(f"{self.INSTANCE_DIR}/masking_results.xlsx", index=False, header=False)
+            df.to_csv(f"{self.INSTANCE_DIR}/masking_results.xlsx", index=False, header=True)
         
         else:
             print("PHASE 1 SKIPPED -> PATCHES MAPPING ALREADY AVAILABLE")
-            df = pd.read_excel(f"{self.INSTANCE_DIR}/masking_results.xlsx")
+            df = pd.read_csv(f"{self.INSTANCE_DIR}/masking_results.xlsx", header=0)
 
         print("PHASE 2 -> MASKING PROCESS")
         full_img_area = self.full_img_width * self.full_img_height
@@ -126,11 +124,9 @@ class ImageMasker:
         left_b = v_cut * (902 - self.h_overlap)
         top_b = h_cut * (1279 - self.v_overlap)
 
-        # mask = Image.open(f"{os.getcwd()}/def_mask.png")
         mask = Image.open(f"{XAI_ROOT}/def_mask.png")
         mask_array = np.array(mask)
         
-        # with open(f"{os.getcwd()}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}/{i}/{i}_scores.pkl", "rb") as f: 
         with open(f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}/{i}/{i}_scores.pkl", "rb") as f: 
             base_scores = pickle.load(f)
         reduced_scores = reduce_scores(mask, base_scores)
@@ -171,12 +167,12 @@ class ImageMasker:
             TEST_ID = self.exp_metadata["TEST_ID"]
             MODEL_TYPE = self.exp_metadata["MODEL_TYPE"]
             
-            inst_name, inst_type = inst[:-4], inst[-4:]
-            c = int(inst_name[:-1])
+            inst_name, c, inst_type = inst[:-4], None, inst[-4:]
+            if DATASET == "CEDAR-Letter": c = int(inst_name[:-1])
+            if DATASET == "CVL": c = int(inst_name[:-2])
             
             src_path = f"{self.INSTANCE_DIR}/{inst_name}_masked_{self.mode}_{self.mask_rate}{inst_type}"
-            # dest_dir = f"{os.getcwd()}/../datasets/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mode}_{self.mask_rate}"
-            dest_dir = f"{DATASET_ROOT}/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mode}_{self.mask_rate}"
+            dest_dir = f"{DATASET_ROOT}/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mode}_{self.mask_rate}_{self.xai_algorithm}"
             os.makedirs(dest_dir, exist_ok=True)
             os.system(f"mv {src_path} {dest_dir}/{inst_name}{inst_type}")
             

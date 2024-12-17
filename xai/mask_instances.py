@@ -28,8 +28,7 @@ def load_metadata(metadata_path) -> dict:
     except json.JSONDecodeError as e: raise ValueError(f"Error occurred while decoding JSON file '{metadata_path}': {e}")
     except Exception as e: raise FileNotFoundError(f"Error occurred while reading metadata file '{metadata_path}': {e}")
 
-def setup_masking_process(dataset, classes, cwd) -> Tuple[list, list]:
-    # dataset_dir = cwd + f"/./../datasets/{dataset}"
+def setup_masking_process(dataset, classes) -> Tuple[list, list]:
     dataset_dir = f"{DATASET_ROOT}/{dataset}"
     instances, instance_full_paths = list(), list()
     
@@ -51,22 +50,23 @@ def setup_masking_process(dataset, classes, cwd) -> Tuple[list, list]:
 if __name__ == '__main__':
     args = get_args()
     TEST_ID = args.test_id
-    CWD = os.getcwd()
-    # EXP_METADATA_PATH = os.path.join(CWD, "..", "log", f"{TEST_ID}-metadata.json")
     EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
 
     try: EXP_METADATA = load_metadata(EXP_METADATA_PATH)
     except Exception as e:
         print(e)
         exit(1)
+    
+    MASK_RATE = args.mask_rate
+    MODE = args.mode
         
     XAI_ALGORITHM = args.xai_algorithm
     if f"{XAI_ALGORITHM}_METADATA" not in EXP_METADATA:
-        print(f"*** IN RELATION TO THE SPECIFIED EXPERIMENT, THE XAI ALGORITHM '{XAI_ALGORITHM}' HAS NOT BEEN EMPLOYED YET! ***\n")
+        print(f"*** IN RELATION TO THE '{TEST_ID}' EXPERIMENT, THE XAI ALGORITHM '{XAI_ALGORITHM}' HAS NOT BEEN EMPLOYED YET! ***\n")
         exit(1)
     
-    if "MASK_PROCESS_END_TIMESTAMP" in EXP_METADATA:
-        print(f"*** IN RELATION TO THE SPECIFIED EXPERIMENT AND TO THE XAI ALGORITHM '{XAI_ALGORITHM}', THE MASKING PROCESS HAS ALREADY BEEN PERFORMED! ***\n")
+    if f"MASK_PROCESS_{MODE}_{MASK_RATE}_END_TIMESTAMP" in EXP_METADATA:
+        print(f"*** IN RELATION TO ['{TEST_ID}' EXPERIMENT, '{XAI_ALGORITHM}' XAI ALGORITHM, '{MODE}' MODE, '{MASK_RATE}' MASK RATE], THE MASKING PROCESS HAS ALREADY BEEN PERFORMED! ***\n")
         exit(1)
     
     DATASET = EXP_METADATA["DATASET"]
@@ -75,10 +75,7 @@ if __name__ == '__main__':
     BLOCK_WIDTH = EXP_METADATA[f"{XAI_ALGORITHM}_METADATA"]["BLOCK_DIM"]["WIDTH"]
     BLOCK_HEIGHT = EXP_METADATA[f"{XAI_ALGORITHM}_METADATA"]["BLOCK_DIM"]["HEIGHT"]
     
-    instances, paths = setup_masking_process(DATASET, CLASSES, CWD)
-    
-    MASK_RATE = args.mask_rate
-    MODE = args.mode
+    instances, paths = setup_masking_process(DATASET, CLASSES)
     
     masker = ImageMasker(
         instances=instances,
@@ -89,9 +86,10 @@ if __name__ == '__main__':
         mode=MODE,
         block_width=BLOCK_WIDTH,
         block_height=BLOCK_HEIGHT,
+        xai_algorithm=XAI_ALGORITHM,
         exp_metadata=EXP_METADATA)
     
     masker()
     
-    EXP_METADATA["MASK_PROCESS_END_TIMESTAMP"] = str(datetime.now())
+    EXP_METADATA[f"MASK_PROCESS_{MODE}_{MASK_RATE}_END_TIMESTAMP"] = str(datetime.now())
     with open(EXP_METADATA_PATH, "w") as jf: json.dump(EXP_METADATA, jf, indent=4) 
