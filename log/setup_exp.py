@@ -26,9 +26,6 @@ def validate_and_process_args(args) -> dict:
     test_id = args.test_id
     
     # Check if the Metadata JSON file for the given 'test_id' already exists
-    # if os.path.exists(f"./{test_id}-metadata.json"): 
-    #     print("*** IN RELATION TO THE SPECIFIED EXPERIMENT, THE METADATA FILE HAS ALREADY BEEN CREATED! ***\n")
-    #     exit(1)
     if os.path.exists(f"{LOG_ROOT}/{test_id}-metadata.json"): 
         print("*** IN RELATION TO THE SPECIFIED EXPERIMENT, THE METADATA FILE HAS ALREADY BEEN CREATED! ***\n")
         exit(1)
@@ -55,10 +52,7 @@ def validate_and_process_args(args) -> dict:
     return exp_metadata
 
 def save_metadata(metadata: dict, test_id: str):
-    # with open(f"./{test_id}-metadata.json", "w") as jf:
-    #     json.dump(metadata, jf, indent=4)
-    with open(f"{LOG_ROOT}/{test_id}-metadata.json", "w") as jf:
-        json.dump(metadata, jf, indent=4)
+    with open(f"{LOG_ROOT}/{test_id}-metadata.json", "w") as jf: json.dump(metadata, jf, indent=4)
 
 ### #### ###
 ### MAIN ###
