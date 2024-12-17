@@ -163,16 +163,13 @@ cython_debug/
 
 datasets/CEDAR_Letter/*
 datasets/CVL/*
-datasets/memory/*
 
 log/*.json
 
 bvr_comparisons/tests/*
 
-classifiers/classifier_NN/memory/*
 classifiers/classifier_NN/tests/*
 
 xai/data/*
-xai/memory/*
 xai/explanations/*
 xai/mask_images/*
