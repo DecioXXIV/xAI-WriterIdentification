@@ -59,10 +59,10 @@ def split_and_copy_files(dataset, source_dir, class_name, train_replicas, random
             os.system(f"cp {source_dir}/{file} {EXP_DIR}/train/{class_name}/{file[:-4]}_cp{i+1}{file[-4:]}")
         
     for file in val:
-        os.system(f"cp {source_dir}/{file} {EXP_DIR}/val/{class_name}/{file[:-4]}_cp{i+1}{file[-4:]}")
+        os.system(f"cp {source_dir}/{file} {EXP_DIR}/val/{class_name}/{file[:-4]}{file[-4:]}")
 
     for file in test:
-        os.system(f"cp {source_dir}/{file} {EXP_DIR}/test/{class_name}/{file[:-4]}_cp{i+1}{file[-4:]}")
+        os.system(f"cp {source_dir}/{file} {EXP_DIR}/test/{class_name}/{file[:-4]}{file[-4:]}")
         
     class_instances = len(os.listdir(f"{EXP_DIR}/train/{class_name}"))
     print(f"Class {c} -> Train Instances: {class_instances}")
@@ -101,8 +101,6 @@ def plot_metric(metric):
 if __name__ == '__main__':
     args = get_args()
     TEST_ID = args.test_id
-    CWD = os.getcwd()
-    # EXP_METADATA_PATH = os.path.join(CWD, "..", "..", "log", f"{TEST_ID}-metadata.json")
     EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
 
     try: EXP_METADATA = load_metadata(EXP_METADATA_PATH)
@@ -140,14 +138,7 @@ if __name__ == '__main__':
     
     with open(EXP_METADATA_PATH, 'w') as jf: json.dump(EXP_METADATA, jf, indent=4)
     
-    # os.makedirs(CWD + f"/tests", exist_ok=True)
     os.makedirs(f"{CLASSIFIER_ROOT}/tests", exist_ok=True)
-    
-    # SOURCE_DATA_DIR = CWD + f"/../../datasets/{DATASET}/processed"
-    # EXP_DIR = CWD + f"/tests/{TEST_ID}"
-    # OUTPUT_DIR = CWD + f"/tests/{TEST_ID}/output"
-    # DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # MODEL_PATH = CWD + "/../cp/Test_3_TL_val_best_model.pth"
 
     SOURCE_DATA_DIR = f"{DATASET_ROOT}/{DATASET}/processed"
     EXP_DIR = f"{CLASSIFIER_ROOT}/tests/{TEST_ID}"

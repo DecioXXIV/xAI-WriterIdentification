@@ -463,7 +463,7 @@ class Trainer():
             
             if "EPOCHS_COMPLETED" not in self.exp_metadata: self.exp_metadata["EPOCHS_COMPLETED"] = 1
             else: self.exp_metadata["EPOCHS_COMPLETED"] = self.exp_metadata["EPOCHS_COMPLETED"] + 1
-            # with open(f"./../../log/{self.test_ID}-metadata.json", 'w') as jf: json.dump(self.exp_metadata, jf, indent=4)
+            
             with open(f"{LOG_ROOT}/{self.test_ID}-metadata.json", 'w') as jf: json.dump(self.exp_metadata, jf, indent=4)
 
             sr.save_pkl('train_loss', train_loss)
