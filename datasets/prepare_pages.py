@@ -3,6 +3,7 @@ from PIL import Image
 from tqdm import tqdm
 from argparse import ArgumentParser
 from datetime import datetime
+from torchvision import transforms as T
 
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
@@ -43,6 +44,25 @@ def process_images(class_name, class_type, dataset, test_id, model_type, final_w
         - Final dimensions (width=902, height=1279)
         - Multiplicative Factors: more high are the factors, more 902x1279 crops will be part of the training and test datasets
         """
+        
+        edited = False
+        if final_width > img_width:
+            edited = True
+            pad_left = (final_width - img_width) // 2
+            pad_right = final_width - img_width - pad_left
+            transform = T.Pad((pad_left, 0, pad_right, 0), padding_mode="edge")
+            img = transform(img)
+            img_width, img_height = img.size
+        if final_height > img_height:
+            edited = True
+            pad_top = (final_height - img_height) // 2
+            pad_bottom = final_height - img_height - pad_top
+            transform = T.Pad((0, pad_top, 0, pad_bottom), padding_mode="edge")
+            img = transform(img)
+            img_width, img_height = img.size
+        
+        if edited: img.save(f"{class_source}/{file}")
+        
         vert_cuts = (img_width // final_width) * vert_mult
         hor_cuts = (img_height // final_height) * hor_mult
         
