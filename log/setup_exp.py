@@ -31,8 +31,11 @@ def validate_and_process_args(args) -> dict:
         exit(1)
     
     # Parse and validation for the 'classes' and the 'class_types' parameters
-    classes = args.classes.split(',')
-    class_types = args.class_types.split(',')
+    args_classes, classes = args.classes.split(','), list()
+    for a in args_classes: classes.append(int(a.strip()))
+    
+    args_class_types, class_types = args.class_types.split(','), list()
+    for a in args_class_types: class_types.append(a.strip())
 
     if len(classes) > len(class_types): raise ValueError("There is at least one Class without the corresponding Class Type")
     if len(classes) < len(class_types): raise ValueError("There is at least one Class Type which cannot be attributed to any Class")
