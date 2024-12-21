@@ -91,5 +91,5 @@ if __name__ == '__main__':
     
     masker()
     
-    EXP_METADATA[f"MASK_PROCESS_{MODE}_{MASK_RATE}_END_TIMESTAMP"] = str(datetime.now())
+    EXP_METADATA[f"MASK_PROCESS_{MODE}_{MASK_RATE}_{XAI_ALGORITHM}_END_TIMESTAMP"] = str(datetime.now())
     with open(EXP_METADATA_PATH, "w") as jf: json.dump(EXP_METADATA, jf, indent=4) 

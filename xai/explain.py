@@ -22,9 +22,9 @@ def get_args():
     parser.add_argument("-block_width", type=int, required=True)
     parser.add_argument("-block_height", type=int, required=True)
     parser.add_argument("-crop_size", type=int)
-    parser.add_argument("-algorithm", type=str, required=True, choices=["LimeBase"])
+    parser.add_argument("-algorithm", type=str, required=True, choices=["LimeBase", "GLimeBinomial"])
     parser.add_argument("-surrogate_model", type=str, required=True, choices=["LinReg", "Ridge"])
-    parser.add_argument("-lime_iters", type=int, default=None)
+    parser.add_argument("-lime_iters", type=int, default=1)
     parser.add_argument("-remove_patches", type=str, default="False")
 
     return parser.parse_args()

@@ -37,8 +37,8 @@ def validate_and_process_args(args) -> dict:
     args_class_types, class_types = args.class_types.split(','), list()
     for a in args_class_types: class_types.append(a.strip())
 
-    if len(classes) > len(class_types): raise ValueError("There is at least one Class without the corresponding Class Type")
-    if len(classes) < len(class_types): raise ValueError("There is at least one Class Type which cannot be attributed to any Class")
+    if len(classes) > len(class_types): raise Exception("There is at least one Class without the corresponding Class Type")
+    if len(classes) < len(class_types): raise Exception("There is at least one Class Type which cannot be attributed to any Class")
 
     # Build the Metadata dictionary for the current Experiment
     exp_metadata = {

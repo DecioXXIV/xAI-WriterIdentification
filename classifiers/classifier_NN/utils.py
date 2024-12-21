@@ -60,11 +60,17 @@ def all_crops(img, size, mult_factor):
     img_w, img_h = img.size
     crop_w, crop_h = size
     
-    vertical_cuts = ((img_w // crop_w) * mult_factor) + 1
-    horizontal_cuts = ((img_h // crop_h) * mult_factor) + 1
+    # vertical_cuts = ((img_w // crop_w) * mult_factor) + 1
+    # horizontal_cuts = ((img_h // crop_h) * mult_factor) + 1
 
-    h_overlap = int((((vertical_cuts+1)*crop_w) - img_w) / vertical_cuts)
-    v_overlap = int((((horizontal_cuts+1)*crop_h) - img_h) / horizontal_cuts)
+    # h_overlap = int((((vertical_cuts+1)*crop_w) - img_w) / vertical_cuts)
+    # v_overlap = int((((horizontal_cuts+1)*crop_h) - img_h) / horizontal_cuts)
+    
+    vertical_cuts = (img_w // crop_w) * mult_factor
+    horizontal_cuts = (img_h // crop_h) * mult_factor
+        
+    h_overlap = max(1, int((((vertical_cuts + 1) * crop_w) - img_w) / vertical_cuts))
+    v_overlap = max(1, int((((horizontal_cuts + 1) * crop_h) - img_h) / horizontal_cuts))
 
     for h_cut in range(0, horizontal_cuts):
         for v_cut in range(0, vertical_cuts):
