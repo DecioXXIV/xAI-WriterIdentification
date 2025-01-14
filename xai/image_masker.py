@@ -1,13 +1,15 @@
-import pickle, os
+import pickle, os, json
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
+from datetime import datetime
 from PIL import Image
 from copy import deepcopy
 from torchvision import transforms as T
 
 from .explainers import reduce_scores
 
+LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
 XAI_ROOT = "./xai"
 
@@ -76,21 +78,22 @@ class ImageMasker:
             df = pd.read_csv(f"{self.INSTANCE_DIR}/masking_results.xlsx", header=0)
 
         print("PHASE 2 -> MASKING PROCESS")
-        full_img_area = self.full_img_width * self.full_img_height
-        patch_area = self.block_width * self.block_height
-
-        num_patches_to_mask = int((full_img_area * self.mask_rate) / patch_area)        
-        masked_patches, idx, end_condition = 0, 0, False
-        
+        full_img_area = self.full_img_width * self.full_img_height   
         full_img_to_mask = deepcopy(full_img)
         full_img_to_mask_tensor = T.ToTensor()(full_img_to_mask)
+        
         os.makedirs(f"{self.INSTANCE_DIR}/removed_patches", exist_ok=True)
         
+        check_array = np.ones(shape=(self.full_img_width, self.full_img_height))
+        masked_patches, masked_area, idx  = 0, 0, 0
+        
+        end_condition = False
         while not end_condition:
             left, top, right, bottom = None, None, None, None
             match self.mode:
                 case "saliency":
                     left, top, right, bottom = df.iloc[idx]["Coordinates"]
+                    
                     if (right - left + 1 != self.block_width) or (bottom - top + 1 != self.block_height):
                         print(f"Skipped patch {idx} due to wrong dimensions")
                         idx += 1
@@ -102,20 +105,31 @@ class ImageMasker:
                     top = np.random.randint(0, self.full_img_height - self.block_height)
                     bottom = top + self.block_height
             
-            for c, mean_v in enumerate(self.training_mean):
-                full_img_to_mask_tensor[c, top:bottom, left:right] = mean_v
-            idx, masked_patches = idx + 1, masked_patches + 1
-            
-            patch = full_img.crop((left, top, right, bottom))
-            patch.save(f"{self.INSTANCE_DIR}/removed_patches/patch_{masked_patches}.jpg")
-            
-            if masked_patches == num_patches_to_mask:
-                full_img_masked_tensor_copy = deepcopy(full_img_to_mask_tensor)
-                full_img_masked = T.ToPILImage()(full_img_masked_tensor_copy)
-                full_img_masked.save(f"{self.INSTANCE_DIR}/{full_img_name}_masked_{self.mode}_{self.mask_rate}{full_img_type}")
+            if (self.mode == "saliency") and (df.iloc[idx]["Score"] <= 0):
                 end_condition = True
+            
+            else:
+                for channel, mean_v in enumerate(self.training_mean):
+                    full_img_to_mask_tensor[channel, top:bottom, left:right] = mean_v
+                
+                check_array[top:bottom, left:right] = 0
+                idx, masked_patches = idx + 1, masked_patches + 1
+                
+                patch = full_img.crop((left, top, right, bottom))
+                patch.save(f"{self.INSTANCE_DIR}/removed_patches/patch_{masked_patches}.jpg")
+                
+                masked_area = np.count_nonzero(check_array == 0)
+                if (masked_area > full_img_area * self.mask_rate):
+                    end_condition = True
+                    
+        full_img_masked_tensor_copy = deepcopy(full_img_to_mask_tensor)
+        full_img_masked = T.ToPILImage()(full_img_masked_tensor_copy)
+        full_img_masked.save(f"{self.INSTANCE_DIR}/{full_img_name}_masked_{self.mode}_{self.mask_rate}{full_img_type}")
         
         print(f"End of Masking Process for the current Instance -> Masked Patches: {masked_patches}\n")
+        
+        masked_area_ratio = masked_area / full_img_area
+        return masked_area_ratio
 
     def find_patches_coordinates(self, i) -> list:
         filename_parts = i.split("_")
@@ -160,20 +174,33 @@ class ImageMasker:
         print(f"*** BEGINNING OF MASKING PROCESS FOR TEST: {self.test_id} ***")
         print(f"*** MODE = {self.mode}, RATE = {self.mask_rate} ***")
         
+        DATASET = self.exp_metadata["DATASET"]
+        TEST_ID = self.exp_metadata["TEST_ID"]
+        MODEL_TYPE = self.exp_metadata["MODEL_TYPE"]
+        EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
+        
+        masking_metadata = dict()
+        masking_metadata["FULL_INSTANCES"] = dict()
+        
+        self.exp_metadata[f"MASK_PROCESS_{self.mode}_{self.mask_rate}_{self.xai_algorithm}_METADATA"] = masking_metadata
+        with open(EXP_METADATA_PATH, "w") as jf: json.dump(self.exp_metadata, jf, indent=4)
+        
         for inst, path in zip(self.instances, self.paths): 
-            self.mask_full_instance(inst, path)
-            
-            DATASET = self.exp_metadata["DATASET"]
-            TEST_ID = self.exp_metadata["TEST_ID"]
-            MODEL_TYPE = self.exp_metadata["MODEL_TYPE"]
+            masked_area_ratio = self.mask_full_instance(inst, path)
             
             inst_name, c, inst_type = inst[:-4], None, inst[-4:]
             if DATASET == "CEDAR_Letter": c = int(inst_name[:-1])
             if DATASET == "CVL": c = int(inst_name[:-2])
-            
+                        
             src_path = f"{self.INSTANCE_DIR}/{inst_name}_masked_{self.mode}_{self.mask_rate}{inst_type}"
             dest_dir = f"{DATASET_ROOT}/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mode}_{self.mask_rate}_{self.xai_algorithm}"
             os.makedirs(dest_dir, exist_ok=True)
             os.system(f"mv {src_path} {dest_dir}/{inst_name}{inst_type}")
             
+            self.exp_metadata[f"MASK_PROCESS_{self.mode}_{self.mask_rate}_{self.xai_algorithm}_METADATA"]["FULL_INSTANCES"][inst] = masked_area_ratio
+            with open(EXP_METADATA_PATH, "w") as jf: json.dump(self.exp_metadata, jf, indent=4)
+            
         print(f"*** END OF MASKING PROCESS FOR TEST: {self.test_id} ***\n")
+        
+        self.exp_metadata[f"MASK_PROCESS_{self.mode}_{self.mask_rate}_{self.xai_algorithm}_METADATA"]["END_TIMESTAMP"] = str(datetime.now())
+        with open(EXP_METADATA_PATH, "w") as jf: json.dump(self.exp_metadata, jf, indent=4)
