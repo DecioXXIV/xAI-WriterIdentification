@@ -354,4 +354,5 @@ if __name__ == '__main__':
         print(f"*** BEGINNING OF EXPLANATIONS PAIR TEST -> '{XAI_ALGORITHM}' ALGORITHM") 
         pair_explanations_test(BASELINE, RETRAINED, XAI_ALGORITHM)
 
+    print()
     torch.cuda.empty_cache()

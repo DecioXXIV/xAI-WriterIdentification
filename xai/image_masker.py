@@ -168,7 +168,7 @@ class ImageMasker:
             MODEL_TYPE = self.exp_metadata["MODEL_TYPE"]
             
             inst_name, c, inst_type = inst[:-4], None, inst[-4:]
-            if DATASET == "CEDAR-Letter": c = int(inst_name[:-1])
+            if DATASET == "CEDAR_Letter": c = int(inst_name[:-1])
             if DATASET == "CVL": c = int(inst_name[:-2])
             
             src_path = f"{self.INSTANCE_DIR}/{inst_name}_masked_{self.mode}_{self.mask_rate}{inst_type}"
