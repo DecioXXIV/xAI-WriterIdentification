@@ -163,6 +163,7 @@ cython_debug/
 
 datasets/CEDAR_Letter/*
 datasets/CVL/*
+datasets/VatLat653/*
 
 log/*.json
 
