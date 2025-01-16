@@ -49,6 +49,9 @@ def split_and_copy_files(dataset, source_dir, class_name, train_replicas, random
     if dataset == "CVL":
         train = [f for f in files if ("-3" not in f and "-7" not in f)]
         test = [f for f in files if ("-3" in f or "-7" in f)]
+    if dataset == "VatLat653":
+        train = [f for f in files if "a" in f]
+        test = [f for f in files if "t" in f]
         
     np.random.seed(random_seed)
     np.random.shuffle(test)

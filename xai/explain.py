@@ -7,7 +7,7 @@ from .explainers import LimeBaseExplainer, get_crops_bbxs
 
 from .utils.model_utils import *
 from .utils.image_utils import load_rgb_mean_std
-from .utils.explanations_utils import get_instances_to_explain
+from .utils.explanations_utils import get_instances_to_explain, generate_instance_mask
 
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
@@ -160,7 +160,10 @@ if __name__ == '__main__':
         print(f"Processing Instance '{instance_name}' with label '{label}'")
         
         img_path = f"{XAI_ROOT}/data/{instance_name}"
-        mask_path = f"{XAI_ROOT}/def_mask.png"
+        mask_path = f"{XAI_ROOT}/def_mask_{BLOCK_WIDTH}x{BLOCK_HEIGHT}.png"
+        
+        if not os.path.exists(mask_path): generate_instance_mask(img_width=902, img_height=1279, block_width=BLOCK_WIDTH, block_height=BLOCK_HEIGHT)
+            
         img, mask = Image.open(img_path), Image.open(mask_path)
 
         # 3.1 -> Feature Attribution for the Instance Superpixels (identified by the Page Mask)
@@ -170,7 +173,7 @@ if __name__ == '__main__':
         # 3.2 -> Generating the Explanation for the Instance Crops by removing "Relevant", "Misleading" and "Random" Patches
         if REMOVE_PATCHES == "True":
             crops_bbxs = get_crops_bbxs(img, final_width=CROP_SIZE, final_height=CROP_SIZE)
-            explainer.compute_masked_patches_explanation(img, mask, instance_name, label, crops_bbxs, CROP_SIZE, reduction_method="mean", min_eval=10, num_samples_for_baseline=10)
+            explainer.compute_masked_patches_explanation(img, mask, instance_name, label, crops_bbxs, reduction_method="mean", min_eval=10, num_samples_for_baseline=10)
         
         EXP_METADATA[f"{XAI_ALGORITHM}_METADATA"]["INSTANCES"][f"{instance_name}"] = str(datetime.now())
         with open(EXP_METADATA_PATH, 'w') as jf: json.dump(EXP_METADATA, jf, indent=4)

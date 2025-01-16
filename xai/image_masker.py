@@ -138,7 +138,7 @@ class ImageMasker:
         left_b = v_cut * (902 - self.h_overlap)
         top_b = h_cut * (1279 - self.v_overlap)
 
-        mask = Image.open(f"{XAI_ROOT}/def_mask.png")
+        mask = Image.open(f"{XAI_ROOT}/def_mask_{self.block_width}x{self.block_height}.png")
         mask_array = np.array(mask)
         
         with open(f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}/{i}/{i}_scores.pkl", "rb") as f: 
@@ -188,9 +188,19 @@ class ImageMasker:
         for inst, path in zip(self.instances, self.paths): 
             masked_area_ratio = self.mask_full_instance(inst, path)
             
-            inst_name, c, inst_type = inst[:-4], None, inst[-4:]
-            if DATASET == "CEDAR_Letter": c = int(inst_name[:-1])
-            if DATASET == "CVL": c = int(inst_name[:-2])
+            inst_name, c, inst_type = None, None, inst[-4:]
+            if DATASET == "CEDAR_Letter":
+                # Ex: 0001a.jpg
+                inst_name = inst[:-4]               # -> 0001
+                c = int(inst_name[:-1])             # -> 1
+            if DATASET == "CVL":
+                # Ex: 0001-1.png
+                inst_name = inst[:-4]               # -> 0001-1 
+                c = int(inst_name[:-2])             # -> 1
+            if DATASET == "VatLat653":
+                # Ex: 0001a-0004r.png
+                inst_name = inst[:-4]               # -> 0001a-0004r
+                c = int(inst_name[:-7])             # -> 1
                         
             src_path = f"{self.INSTANCE_DIR}/{inst_name}_masked_{self.mode}_{self.mask_rate}{inst_type}"
             dest_dir = f"{DATASET_ROOT}/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mode}_{self.mask_rate}_{self.xai_algorithm}"

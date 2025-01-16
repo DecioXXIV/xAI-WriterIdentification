@@ -47,55 +47,28 @@ def create_image_grid(
     
     return grid_dict, num_cols, num_rows
 
-def generate_page_mask(
-        file_name: str, 
-        block_height: int, 
-        block_width: int, 
-        verbose: bool=True,
-        copy: bool=True):
-    """
-    DEPRECATED!!!
-    Args:
-        file_name (str): name of the image file (without extension) to be cropped
-        block_height (int), block_width (int): dimensions of the mask blocks
-        verbose (bool): print image sizes if True
+def generate_instance_mask(
+        img_width: int,
+        img_height: int,
+        block_width: int,
+        block_height: int):
 
-    Returns:
-        None -> saves the mask in the './data/<file_name>' directory
-    """
-
-    os.makedirs(f"{XAI_ROOT}/explanations/page_level/{file_name}", exist_ok=True)
-
-    if not copy:
-        img = Image.open(f"{XAI_ROOT}/data/{file_name}.jpg")
-        img_width, img_height = img.size
-
-        if verbose:
-            print(f"Original Image Size: {img_width}x{img_height} pixels")
-
-        block_width, block_height = block_width, block_height
-        num_columns, num_rows = int(img_width/block_width) + 1, int(img_height/block_height) + 1
-
-        idx = np.arange(int(num_columns*num_rows), dtype=np.uint16)
-        np.random.shuffle(idx)
-        mask = idx.reshape((num_rows, num_columns)).repeat(block_height, axis = 0).repeat(block_width, axis = 1)*1000
-
-        mask_img = Image.fromarray(mask)
-        mask_width, mask_height = mask_img.size
-
-        left, right = (mask_width - img_width)/2, (mask_width + img_width)/2
-        top, bottom = (mask_height - img_height)/2, (mask_height + img_height)/2
-
-        mask = mask_img.crop((left, top, right, bottom))
-        mask = mask.crop((0, 0, img_width, img_height))
-        if verbose:
-            mask_width, mask_height = mask.size
-            print(f"Mask Image Size: {mask_width}x{mask_height} pixels")
-
-        mask.save(f"{XAI_ROOT}/explanations/page_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")
+    num_columns, num_rows = int(img_width/block_width) + 1, int(img_height/block_height) + 1
     
-    else:
-        os.system(f"cp {XAI_ROOT}/def_mask.png {XAI_ROOT}/explanations/page_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")
+    idx = np.arange(int(num_columns*num_rows), dtype=np.uint16)
+    np.random.shuffle(idx)
+    mask = idx.reshape((num_rows, num_columns)).repeat(block_height, axis = 0).repeat(block_width, axis = 1)*1000
+
+    mask_img = Image.fromarray(mask)
+    mask_width, mask_height = mask_img.size
+
+    left, right = (mask_width - img_width)/2, (mask_width + img_width)/2
+    top, bottom = (mask_height - img_height)/2, (mask_height + img_height)/2
+
+    mask = mask_img.crop((left, top, right, bottom))
+    mask = mask.crop((0, 0, img_width, img_height))
+
+    mask.save(f"{XAI_ROOT}/def_mask_{block_width}x{block_height}.png")
 
 def extract_image_crops(
         file_name:str, 
@@ -165,9 +138,11 @@ def get_instances_to_explain(dataset, source, class_to_idx, phase):
         if phase == "train":
             if (dataset == "CEDAR_Letter") and ("c" in f): continue
             if (dataset == "CVL") and ("-3" in f or "-7" in f): continue
+            if (dataset == "VatLat653") and ("t" in f): continue
         if phase == "test":
             if (dataset == "CEDAR_Letter") and ("c" not in f): continue
             if (dataset == "CVL") and ("-3" not in f and "-7" not in f): continue
+            if (dataset == "VatLat653") and ("t" not in f): continue
         
         writer_id = int(f[0:4])
         label = class_to_idx[str(writer_id)]

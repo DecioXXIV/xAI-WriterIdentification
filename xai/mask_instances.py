@@ -1,5 +1,4 @@
 import os, json
-from datetime import datetime
 from argparse import ArgumentParser
 from torchvision import transforms as T
 from typing import Tuple
@@ -37,6 +36,8 @@ def setup_masking_process(dataset, classes) -> Tuple[list, list]:
             class_instances = [inst for inst in os.listdir(f"{dataset_dir}/{c}") if "c" not in inst]
         if dataset == "CVL":
             class_instances = [inst for inst in os.listdir(f"{dataset_dir}/{c}") if ("-3" not in inst and "-7" not in inst)]
+        if dataset == "VatLat653":
+            class_instances = [inst for inst in os.listdir(f"{dataset_dir}/{c}") if "t" not in inst]
         
         for i in class_instances: 
             instances.append(i)

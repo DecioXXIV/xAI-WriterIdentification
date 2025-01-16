@@ -14,7 +14,7 @@ def get_args():
     parser.add_argument("-model_type", type=str, required=True, choices=['NN', 'GB', 'SVM'], help="Classifier Type")
 
     # Data Preparation parameters
-    parser.add_argument("-dataset", type=str, required=True, choices=['CEDAR_Letter', 'CVL'], help="Dataset employed in the experiment")
+    parser.add_argument("-dataset", type=str, required=True, choices=['CEDAR_Letter', 'CVL', 'VatLat653'], help="Dataset employed in the experiment")
     parser.add_argument("-classes", type=str, required=True, help="Comma-separated list of classes")
     parser.add_argument("-class_types", type=str, required=True, help="Comma-separated list of class types ('Base'/'Masked')")
     parser.add_argument("-vert_mult_fact", type=int, default=1, help="Multiplicative factor for vertical cuts")

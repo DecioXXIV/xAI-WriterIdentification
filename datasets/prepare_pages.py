@@ -63,14 +63,21 @@ def process_images(class_name, class_type, dataset, test_id, model_type, final_w
         
         if edited: img.save(f"{class_source}/{file}")
         
-        vert_cuts = (img_width // final_width) * vert_mult
-        hor_cuts = (img_height // final_height) * hor_mult
+        # vert_cuts = (img_width // final_width) * vert_mult
+        # hor_cuts = (img_height // final_height) * hor_mult
+        
+        ### TEMPORANEO! ###
+        vert_cuts, hor_cuts = None, None
+        if dataset == "CEDAR_Letter": vert_cuts, hor_cuts = 7, 4
+        if dataset == "CVL": vert_cuts, hor_cuts = 5, 2
+        if dataset == "VatLat653": vert_cuts, hor_cuts = 1, 1
+        ### FINE TEMPORANEO! ###
         
         h_overlap = max(1, int((((vert_cuts + 1) * final_width) - img_width) / vert_cuts))
         v_overlap = max(1, int((((hor_cuts + 1) * final_height) - img_height) / hor_cuts))
         
-        for h_cut in range(0, hor_cuts+1):
-            for v_cut in range(0, vert_cuts+1):
+        for h_cut in range(0, hor_cuts):
+            for v_cut in range(0, vert_cuts):
                 left = v_cut * (final_width - h_overlap)
                 right = left + final_width
                 top = h_cut * (final_height - v_overlap)
@@ -78,9 +85,6 @@ def process_images(class_name, class_type, dataset, test_id, model_type, final_w
                 
                 crop = img.crop((left, top, right, bottom))
                 crop.save(f"{class_dest}/{file[:-4]}_{h_cut}_{v_cut}{file[-4:]}")
-                
-                # file[:-4] -> filename
-                # file[-4:] -> filetype (eg: .jpg, .png, ...)
 
 def copy_not_masked_test_instances(class_name, class_type, dataset, test_id, model_type):
     """This function is specific for the 'ret' Experiments.
@@ -100,6 +104,7 @@ def copy_not_masked_test_instances(class_name, class_type, dataset, test_id, mod
     test_instances = None
     if dataset == "CEDAR_Letter": test_instances = [f for f in os.listdir(class_source) if "c" in f]
     if dataset == "CVL": test_instances = [f for f in os.listdir(class_source) if ("-3" in f or "-7" in f)]
+    if dataset == "VatLat653": test_instances = [f for f in os.listdir(class_source) if "t" in f]
     
     for f in test_instances: os.system(f"cp {class_source}/{f} {class_dest}/{f}")
 
