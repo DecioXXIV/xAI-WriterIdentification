@@ -30,7 +30,7 @@ def get_args():
     parser.add_argument("-ret_id", type=str, required=True)
     parser.add_argument("-subject", type=str, required=True, choices=["confidence", "explanations"])
     parser.add_argument("-mode", type=str, choices=["scan", "random"])
-    parser.add_argument("-mult_factor", type=int, default=1)
+    parser.add_argument("-mult_factor", type=str, default="1")
     parser.add_argument("-iters", type=int, default=3)
     parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase", "GLimeBinomial"])
     
@@ -66,6 +66,7 @@ def get_instances(root_dir, dataset, classes):
         test_instances = list()
         if dataset == "CEDAR_Letter": test_instances = [f for f in os.listdir(f"{dataset_dir}/processed/{c}") if "c" in f]
         if dataset == "CVL": test_instances = [f for f in os.listdir(f"{dataset_dir}/processed/{c}") if ("-3" in f or "-7" in f)]
+        if dataset == "VatLat653": test_instances = [f for f in os.listdir(f"{dataset_dir}/processed/{c}") if "t" in f]
         
         for f in test_instances:
             source = f"{dataset_dir}/processed/{c}/{f}"
@@ -247,7 +248,7 @@ def execute_pair_confidence_test(model_b, model_r, dl, instances, device, root_d
 ### ################### ###
 ### PRINCIPAL FUNCTIONS ###
 ### ################### ###
-def pair_confidence_test(baseline, retrained, mode, mult_factor, iters):
+def pair_confidence_test(baseline, retrained, mode, mult_factors, iters):
     BASELINE_METADATA_PATH = f"{LOG_ROOT}/{baseline}-metadata.json"
     RETRAINED_METADATA_PATH =  f"{LOG_ROOT}/{retrained}-metadata.json"
     
@@ -279,13 +280,17 @@ def pair_confidence_test(baseline, retrained, mode, mult_factor, iters):
     
     mean_, std_ = load_rgb_mean_std(f"{CLASSIFIER_ROOT}/tests/{BASELINE}")
     
-    dl = Confidence_Test_DataLoader(f"{root_dir}/test_instances", CLASSES, 1, CROP_SIZE, False, mode, mult_factor, mean_, std_, False)
     instances = list()
     for c in CLASSES: instances.extend(os.listdir(f"{root_dir}/test_instances/{c}"))
     
-    if mode == "scan": execute_pair_confidence_test(model_baseline, model_retrained, dl, instances, DEVICE, root_dir, CLASSES, mode, mult_factor, None)
-    if mode == "random": 
-        for iter in range(0, iters): execute_pair_confidence_test(model_baseline, model_retrained, dl, instances, DEVICE, root_dir, CLASSES, mode, None, iter+1)
+    if mode == "scan": 
+        for f in mult_factors: 
+            dl = Confidence_Test_DataLoader(f"{root_dir}/test_instances", CLASSES, 1, CROP_SIZE, False, mode, f, mean_, std_, False)
+            execute_pair_confidence_test(model_baseline, model_retrained, dl, instances, DEVICE, root_dir, CLASSES, mode, f, None)
+    if mode == "random":
+        dl = Confidence_Test_DataLoader(f"{root_dir}/test_instances", CLASSES, 1, CROP_SIZE, False, mode, 1, mean_, std_, False)  
+        for iter in range(0, iters): 
+            execute_pair_confidence_test(model_baseline, model_retrained, dl, instances, DEVICE, root_dir, CLASSES, mode, None, iter+1)
     
     os.system(f"rm -r {root_dir}/test_instances")
 
@@ -316,7 +321,7 @@ def pair_explanations_test(baseline, retrained, xai_algorithm):
         with open(base_scores_path, "rb") as f: base_scores = pickle.load(f)
         with open(ret_scores_path, "rb") as f: ret_scores = pickle.load(f)
 
-        mask = Image.open(f"{XAI_ROOT}/def_mask.png")
+        mask = Image.open(f"{XAI_ROOT}/def_mask_{BLOCK_W}x{BLOCK_H}.png")
 
         base_scores_reduced = reduce_scores(mask, base_scores)
         ret_scores_reduced = reduce_scores(mask, ret_scores)
@@ -340,16 +345,19 @@ if __name__ == '__main__':
     BASELINE, RETRAINED = args.base_id, args.ret_id
     SUBJECT = args.subject
     MODE = args.mode
-    MULT_FACTOR, ITERS = args.mult_factor, args.iters
     XAI_ALGORITHM = args.xai_algorithm
+    
+    MULT_FACTORS = list()
+    for f in args.mult_factor.split(','): MULT_FACTORS.append(int(f))
+    ITERS = args.iters
     
     print(f"Baseline Experiment: {BASELINE}")
     print(f"Re-Trained Experiment: {RETRAINED}")
     
     if SUBJECT == "confidence":
-        if MODE == "scan": print(f"*** BEGINNING OF CONFIDENCE PAIR TEST -> '{MODE}' MODE, MULT_FACTOR = {MULT_FACTOR} ***")
+        if MODE == "scan": print(f"*** BEGINNING OF CONFIDENCE PAIR TEST -> '{MODE}' MODE, MULT_FACTOR = {MULT_FACTORS} ***")
         if MODE == "random": print(f"*** BEGINNING OF CONFIDENCE PAIR TEST -> '{MODE}' MODE, ITERS = {ITERS} ***")
-        pair_confidence_test(BASELINE, RETRAINED, MODE, MULT_FACTOR, ITERS)
+        pair_confidence_test(BASELINE, RETRAINED, MODE, MULT_FACTORS, ITERS)
     if SUBJECT == "explanations":
         print(f"*** BEGINNING OF EXPLANATIONS PAIR TEST -> '{XAI_ALGORITHM}' ALGORITHM") 
         pair_explanations_test(BASELINE, RETRAINED, XAI_ALGORITHM)
