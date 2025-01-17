@@ -1,9 +1,10 @@
-import os, cv2, re
+import os, cv2
 import numpy as np
 import PIL
 import imageio
 from PIL import Image
 from copy import deepcopy
+from torchvision import transforms as T
 
 XAI_ROOT = "./xai"
 
@@ -48,12 +49,12 @@ def create_image_grid(
     return grid_dict, num_cols, num_rows
 
 def generate_instance_mask(
-        img_width: int,
-        img_height: int,
+        inst_width: int,
+        inst_height: int,
         block_width: int,
         block_height: int):
 
-    num_columns, num_rows = int(img_width/block_width) + 1, int(img_height/block_height) + 1
+    num_columns, num_rows = int(inst_width/block_width) + 1, int(inst_height/block_height) + 1
     
     idx = np.arange(int(num_columns*num_rows), dtype=np.uint16)
     np.random.shuffle(idx)
@@ -62,13 +63,14 @@ def generate_instance_mask(
     mask_img = Image.fromarray(mask)
     mask_width, mask_height = mask_img.size
 
-    left, right = (mask_width - img_width)/2, (mask_width + img_width)/2
-    top, bottom = (mask_height - img_height)/2, (mask_height + img_height)/2
+    left, right = (mask_width - inst_width)/2, (mask_width + inst_width)/2
+    top, bottom = (mask_height - inst_height)/2, (mask_height + inst_height)/2
 
     mask = mask_img.crop((left, top, right, bottom))
-    mask = mask.crop((0, 0, img_width, img_height))
+    mask = mask.crop((0, 0, inst_width, inst_height))
 
     mask.save(f"{XAI_ROOT}/def_mask_{block_width}x{block_height}.png")
+
 
 def extract_image_crops(
         file_name:str, 

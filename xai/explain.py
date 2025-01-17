@@ -162,7 +162,7 @@ if __name__ == '__main__':
         img_path = f"{XAI_ROOT}/data/{instance_name}"
         mask_path = f"{XAI_ROOT}/def_mask_{BLOCK_WIDTH}x{BLOCK_HEIGHT}.png"
         
-        if not os.path.exists(mask_path): generate_instance_mask(img_width=902, img_height=1279, block_width=BLOCK_WIDTH, block_height=BLOCK_HEIGHT)
+        if not os.path.exists(mask_path): generate_instance_mask(inst_width=902, inst_height=1279, block_width=BLOCK_WIDTH, block_height=BLOCK_HEIGHT)
             
         img, mask = Image.open(img_path), Image.open(mask_path)
 
