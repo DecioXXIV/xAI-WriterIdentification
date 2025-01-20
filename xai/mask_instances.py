@@ -79,6 +79,7 @@ if __name__ == '__main__':
     instances, paths = setup_masking_process(DATASET, CLASSES)
     
     masker = ImageMasker(
+        inst_set="train",
         instances=instances,
         paths=paths,
         test_id=TEST_ID,

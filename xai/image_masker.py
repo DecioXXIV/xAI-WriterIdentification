@@ -12,9 +12,11 @@ from .explainers import reduce_scores
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
 XAI_ROOT = "./xai"
+EVAL_ROOT = "./evals"
 
 class ImageMasker:    
     def __init__(self,
+                inst_set: str,
                 instances: list,
                 paths: list,
                 test_id: str,
@@ -25,6 +27,7 @@ class ImageMasker:
                 block_height: int,
                 xai_algorithm: str,
                 exp_metadata: dict):
+        self.inst_set = inst_set
         self.instances = instances
         self.paths = paths
         self.test_id = test_id
@@ -181,7 +184,7 @@ class ImageMasker:
         MODEL_TYPE = self.exp_metadata["MODEL_TYPE"]
         EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
         
-        if f"MASK_PROCESS_{self.mode}_{self.mask_rate}_{self.xai_algorithm}_METADATA" in self.exp_metadata:
+        if f"MASK_PROCESS_{self.inst_set}_{self.mode}_{self.mask_rate}_{self.xai_algorithm}_METADATA" in self.exp_metadata:
             print(f"*** IN RELATION TO THE SPECIFIED EXPERIMENT AND THE SETTING (xai_algorithm={self.xai_algorithm}, mode={self.mode}, mask_rate={self.mask_rate}), THE INSTANCES HAVE ALREADY BEEN MASKED! ***")
             exit(1)
         
@@ -189,7 +192,7 @@ class ImageMasker:
             masking_metadata = dict()
             masking_metadata["FULL_INSTANCES"] = dict()
         
-            self.exp_metadata[f"MASK_PROCESS_{self.mode}_{self.mask_rate}_{self.xai_algorithm}_METADATA"] = masking_metadata
+            self.exp_metadata[f"MASK_PROCESS_{self.inst_set}_{self.mode}_{self.mask_rate}_{self.xai_algorithm}_METADATA"] = masking_metadata
             with open(EXP_METADATA_PATH, "w") as jf: json.dump(self.exp_metadata, jf, indent=4)
         
             for inst, path in zip(self.instances, self.paths): 
@@ -210,14 +213,15 @@ class ImageMasker:
                     c = int(inst_name[:-7])             # -> 1
                         
                 src_path = f"{self.INSTANCE_DIR_MODE_RATE}/{inst_name}_masked_{self.mode}_{self.mask_rate}{inst_type}"
-                dest_dir = f"{DATASET_ROOT}/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mode}_{self.mask_rate}_{self.xai_algorithm}"
+                if self.inst_set == "train": dest_dir = f"{DATASET_ROOT}/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mode}_{self.mask_rate}_{self.xai_algorithm}"
+                if self.inst_set == "test": dest_dir = f"{EVAL_ROOT}/{TEST_ID}/test_set_masked_{self.mode}_{self.mask_rate}_{self.xai_algorithm}/{c}"
                 os.makedirs(dest_dir, exist_ok=True)
                 os.system(f"cp {src_path} {dest_dir}/{inst_name}{inst_type}")
             
-                self.exp_metadata[f"MASK_PROCESS_{self.mode}_{self.mask_rate}_{self.xai_algorithm}_METADATA"]["FULL_INSTANCES"][inst] = masked_area_ratio
+                self.exp_metadata[f"MASK_PROCESS_{self.inst_set}_{self.mode}_{self.mask_rate}_{self.xai_algorithm}_METADATA"]["FULL_INSTANCES"][inst] = masked_area_ratio
                 with open(EXP_METADATA_PATH, "w") as jf: json.dump(self.exp_metadata, jf, indent=4)
             
             print(f"*** END OF MASKING PROCESS FOR TEST: {self.test_id} ***\n")
         
-            self.exp_metadata[f"MASK_PROCESS_{self.mode}_{self.mask_rate}_{self.xai_algorithm}_METADATA"]["END_TIMESTAMP"] = str(datetime.now())
+            self.exp_metadata[f"MASK_PROCESS_{self.inst_set}_{self.mode}_{self.mask_rate}_{self.xai_algorithm}_METADATA"]["END_TIMESTAMP"] = str(datetime.now())
             with open(EXP_METADATA_PATH, "w") as jf: json.dump(self.exp_metadata, jf, indent=4)
