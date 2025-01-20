@@ -483,7 +483,7 @@ class Trainer():
 ### ################ ###
 ### MODEL EVALUATION ###
 ### ################ ###
-def produce_classification_reports(dl, device, model, output_dir, test_id):    
+def process_test_set(dl, device, model):
     dataset, set_ = dl.load_data()
     
     labels, preds = list(), list()
@@ -503,13 +503,16 @@ def produce_classification_reports(dl, device, model, output_dir, test_id):
             output = model(data.view(-1, c, h, w))
             max_index = output.max(dim = 1)[1]
             max_index = max_index.cpu().detach().numpy()
-            max_index_over_10_crops = max_index.reshape(bs,ncrops)
+            max_index_over_crops = max_index.reshape(bs,ncrops)
             final_max_index = []
             for i in range(bs):
-                final_max_index.append(np.argmax(np.bincount(max_index_over_10_crops[i,:])))
+                final_max_index.append(np.argmax(np.bincount(max_index_over_crops[i,:])))
                 
             preds += list(final_max_index)
     
+    return dataset, labels, preds, target_names, idx_to_c
+
+def produce_confusion_matrix(labels, preds, target_names, idx_to_c, output_dir, test_id):
     label_class_names = [idx_to_c[id_] for id_ in labels]
     pred_class_names = [idx_to_c[id_] for id_ in preds]
     
@@ -542,6 +545,11 @@ def produce_classification_reports(dl, device, model, output_dir, test_id):
     plt.xlabel('Predicted label\naccuracy = {:0.4f}; misclass = {:0.4f}'.format(accuracy, misclass))
     plt.savefig(f'{output_dir}/Test_{test_id}_confusion_matrix_test.png')
     
+def produce_classification_reports(dl, device, model, output_dir, test_id):
+    dataset, labels, preds, target_names, idx_to_c = process_test_set(dl, device, model)
+    
+    produce_confusion_matrix(labels, preds, target_names, idx_to_c, output_dir, test_id)
+        
     with open(f'{output_dir}/Test_{test_id}_classification-report_test.txt', 'w') as f:
         f.write(classification_report(labels, preds, target_names=target_names))
         

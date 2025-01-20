@@ -22,6 +22,7 @@ def get_args():
     parser.add_argument("-train_replicas", type=int, required=True)
     parser.add_argument("-random_seed", type=int, required=True)
     parser.add_argument("-epochs", type=int, default=50)
+    parser.add_argument("-ft_mode", type=str, required=True, choices=["frozen", "full"])
     return parser.parse_args()
 
 def load_metadata(metadata_path) -> dict:
@@ -130,6 +131,7 @@ if __name__ == '__main__':
     TRAIN_REPLICAS = args.train_replicas
     RANDOM_SEED = args.random_seed
     EPOCHS = args.epochs
+    FT_MODE = args.ft_mode
     
     EXP_METADATA["FINE_TUNING_HP"] = {
         "optimizer": OPT,
@@ -179,7 +181,7 @@ if __name__ == '__main__':
     tds, t_dl = train_ds.load_data()
     vds, v_dl = val_ds.load_data()
 
-    model = NN_Classifier(num_classes=len(CLASSES_DATA), mode='frozen', cp_path=MODEL_PATH)
+    model = NN_Classifier(num_classes=len(CLASSES_DATA), mode=FT_MODE, cp_path=MODEL_PATH)
         
     if "EPOCHS_COMPLETED" in EXP_METADATA:
         epochs_completed = EXP_METADATA["EPOCHS_COMPLETED"]
