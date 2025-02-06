@@ -174,3 +174,5 @@ classifiers/classifier_NN/tests/*
 xai/data/*
 xai/explanations/*
 xai/mask_images/*
+
+evals/*
