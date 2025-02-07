@@ -1,152 +1,33 @@
-import os, cv2
+import cv2, os, random
 import numpy as np
-import PIL
-import imageio
+import matplotlib.pyplot as plt
+
 from PIL import Image
 from copy import deepcopy
-from torchvision import transforms as T
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.figure import Figure
+from typing import Tuple
+
+from utils import get_train_instance_patterns, get_test_instance_patterns
 
 XAI_ROOT = "./xai"
 
 ### ############################## ###
 ### EXPLANATIONS SUPPORT FUNCTIONS ###
 ### ############################## ###
-def create_image_grid(
-        crop_size:int, 
-        overlap:int, 
-        img:PIL.Image):
-    """
-    Args:
-        crop_size (int): size of the (square) crop
-        overlap (int): overlap (n_pixels) between adjacent crops
-        img (PIL.Image): image to be cropped
-    
-    Returns:
-        grid_dict (dict): dictionary with keys as the coordinates of the grid and values as the coordinates of the crop
-        num_cols (int): number of columns in the grid
-        num_rows (int): number of rows in the grid
-    """
-    img_w, img_h = img.size
-    num_cols = (img_w - overlap)//(crop_size - overlap)
-    num_rows = (img_h - overlap)//(crop_size - overlap)
-
-    grid_w = (num_cols - 1)*(crop_size - overlap) + crop_size
-    grid_h = (num_rows - 1)*(crop_size - overlap) + crop_size
-
-    UL_x = int((img_w - grid_w)/2)
-    UL_y = int((img_h - grid_h)/2)
-
-    grid_dict = {}
-
-    for i in range(num_rows):
-        for j in range(num_cols):
-            UL_x_grid = UL_x + j*(crop_size - overlap)
-            UL_y_grid = UL_y + i*(crop_size - overlap)
-            BR_x_grid = UL_x_grid + crop_size
-            BR_y_grid = UL_y_grid + crop_size
-            grid_dict[f'{i}_{j}'] = (UL_x_grid, UL_y_grid, BR_x_grid, BR_y_grid)
-    
-    return grid_dict, num_cols, num_rows
-
-def generate_instance_mask(
-        inst_width: int,
-        inst_height: int,
-        block_width: int,
-        block_height: int):
-
-    num_columns, num_rows = int(inst_width/block_width) + 1, int(inst_height/block_height) + 1
-    
-    idx = np.arange(int(num_columns*num_rows), dtype=np.uint16)
-    np.random.shuffle(idx)
-    mask = idx.reshape((num_rows, num_columns)).repeat(block_height, axis = 0).repeat(block_width, axis = 1)*1000
-
-    mask_img = Image.fromarray(mask)
-    mask_width, mask_height = mask_img.size
-
-    left, right = (mask_width - inst_width)/2, (mask_width + inst_width)/2
-    top, bottom = (mask_height - inst_height)/2, (mask_height + inst_height)/2
-
-    mask = mask_img.crop((left, top, right, bottom))
-    mask = mask.crop((0, 0, inst_width, inst_height))
-
-    mask.save(f"{XAI_ROOT}/def_mask_{block_width}x{block_height}.png")
-
-
-def extract_image_crops(
-        file_name:str, 
-        block_width:int, 
-        block_height:int, 
-        crop_size:int, 
-        overlap:int):
-    """
-    Args:
-        file_name (str): name of the image file (without extension) to be cropped
-        block_width (int), block_height (int): dimensions of the mask blocks
-        crop_size (int): size of the (square) crop
-        overlap (int): overlap (n_pixels) between adjacent crops
-    
-    Returns:
-        None -> saves the cropped images and masks in the './data/<file_name>/crops' directory
-    """
-    
-    try:
-        page_img = Image.open(f"{XAI_ROOT}/data/{file_name}.jpg")
-    except:
-        print(f"'{file_name}' not found in './data' directory.")
-
-    try:
-        mask_img = Image.open(f"{XAI_ROOT}/explanations/crop_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")    
-    except:
-        print(f"'{file_name}_mask_blocks_{block_width}x{block_height}.png' not found in './explanations/crop_level/{file_name}' directory.")
-
-    crop_size, overlap = crop_size, overlap
-
-    GD, NC, NR = create_image_grid(crop_size, overlap, mask_img)
-
-    img_array = np.array(deepcopy(page_img).convert('RGB'))[:, :, ::-1]
-    mask_array = np.array(deepcopy(mask_img).convert('RGB'))[:, :, ::-1]
-
-    list_images, list_masks = list(), list()
-
-    if not os.path.exists(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops"):
-        os.mkdir(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops")
-    
-    for i in range(NR):
-        for j in range(NC):
-            x0, y0, x1, y1 = GD[f'{i}_{j}']
-            
-            img_crop = page_img.crop((x0, y0, x1, y1))
-            img_crop.save(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops/{file_name}_{crop_size}_{overlap}_{i}_{j}.jpg")
-
-            mask_crop = mask_img.crop((x0, y0, x1, y1))
-            mask_crop.save(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops/{file_name}_mask_blocks_{block_width}x{block_height}_{crop_size}_{overlap}_{i}_{j}.png")
-
-            img_array_copy = deepcopy(img_array)
-            mask_array_copy = deepcopy(mask_array)
-
-            cv2.rectangle(img_array_copy, (x0, y0), (x1, y1), (0, 0, 255), 5)
-            cv2.rectangle(mask_array_copy, (x0, y0), (x1, y1), (0, 0, 255), 5)
-
-            list_images.append(img_array_copy[:, :, ::-1])
-            list_masks.append(mask_array_copy[:, :, ::-1])
-    
-    # Saves a GIF file which describes the cropping process
-    imageio.mimsave(f'{XAI_ROOT}/explanations/crop_level/{file_name}/{file_name}_crops.gif', list_images, duration=1.25)
-
 def get_instances_to_explain(dataset, source, class_to_idx, phase):
     instances, labels = list(), list()
     
+    train_patterns = get_train_instance_patterns()
+    test_patterns = get_test_instance_patterns()
+
+    pattern_check = train_patterns[dataset] if phase == "train" else test_patterns[dataset]
+    
     for f in os.listdir(source):
-        if phase == "train":
-            if (dataset == "CEDAR_Letter") and ("c" in f): continue
-            if (dataset == "CVL") and ("-3" in f or "-7" in f): continue
-            if (dataset == "VatLat653") and ("t" in f): continue
-        if phase == "test":
-            if (dataset == "CEDAR_Letter") and ("c" not in f): continue
-            if (dataset == "CVL") and ("-3" not in f and "-7" not in f): continue
-            if (dataset == "VatLat653") and ("t" not in f): continue
-        
-        writer_id = int(f[0:4])
+        if pattern_check(f): continue
+
+        writer_id = int(f[:4])
         label = class_to_idx[str(writer_id)]
         
         src_path, dest_path = f"{source}/{f}", f"{XAI_ROOT}/data/{f}"
@@ -156,3 +37,123 @@ def get_instances_to_explain(dataset, source, class_to_idx, phase):
         labels.append(label)
     
     return instances, labels
+
+def reduce_scores(base_mask, scores, reduction_method="mean", min_eval=10):
+    base_mask_array = np.array(base_mask)
+    idxs = np.unique(base_mask_array)
+    
+    reductions = {"mean": np.mean, "median": np.median}
+    red_func = reductions.get(reduction_method, np.mean)
+    
+    reduced_scores = dict()
+    for idx in idxs:
+        values = scores.get(idx, [])
+        if len(values) < min_eval: reduced_scores[idx] = [np.nan]
+        else: reduced_scores[idx] = red_func(values)
+    
+    return reduced_scores
+    
+def assign_attr_scores_to_mask(base_mask, scores):
+    base_mask_array = np.array(deepcopy(base_mask)).astype(np.float32)
+
+    for key in list(scores.keys()):
+        base_mask_array[base_mask_array == float(key)] = scores[key]
+
+    return base_mask_array
+
+def custom_visualization(
+    norm_attr: np.ndarray,
+    min_eval: int,
+    output_name: str = '',
+    fig_size: Tuple[int, int] = (6, 6)
+    ):
+    
+    fig, ax = plt.subplots(figsize=fig_size)
+    ax.axis("off")
+    
+    cmap = LinearSegmentedColormap.from_list("RdWhGn", ["red", "white", "green"])
+    cmap.set_bad(color='black')
+    
+    vmin, vmax = -1, 1
+    heat_map = ax.imshow(norm_attr, cmap=cmap, vmin=vmin, vmax=vmax)
+    
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("bottom", size="5%", pad=0.1)
+    fig.colorbar(heat_map, orientation="horizontal", cax=cax)
+
+    output_path = f"{output_name}_att_heat_map_{min_eval}.png"
+    
+    fig.savefig(output_path, bbox_inches="tight", dpi=300)
+    plt.close(fig)
+
+def get_rois(scores_matrix, page, mask, block_width, block_height, pagename, output_dir, num_rois: int = None, threshold = 0.5):
+    if not num_rois == None:
+        flat_matrix = scores_matrix.flatten()
+        flat_matrix_no_nan = np.unique(flat_matrix[np.logical_not(np.isnan(flat_matrix))])
+        threshold = np.sort(flat_matrix_no_nan)[-num_rois]
+
+    logical_matrix = np.greater_equal(scores_matrix, np.ones_like(scores_matrix)*threshold)
+    logical_matrix = logical_matrix.astype(np.uint8)
+
+    cnts = cv2.findContours(logical_matrix*255, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[-2]
+    
+    img = np.array(deepcopy(page))
+    im_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    im_rgb_backup = deepcopy(im_rgb)    
+    
+    for z, c in enumerate(cnts):
+        cv2.drawContours(im_rgb, c, -1, (0,255,0), 2)
+        # bottomLeftCornerOfText = (np.max(c[:,:,0]), np.min(c[:,:,1]))
+        # cv2.putText(im_rgb, str(z), bottomLeftCornerOfText, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2, 2)
+    
+    cv2.imwrite(f'{output_dir}/{pagename}_rois_t_{str(threshold)}.png', im_rgb)
+    
+    base_mask_array = np.array(deepcopy(mask)) + np.ones_like(scores_matrix)
+    roi_matrix = np.multiply(logical_matrix, base_mask_array)
+
+    diff_shapes = list(np.array(roi_matrix.shape) - np.array(im_rgb_backup.shape[:2]))
+    
+    if diff_shapes[0] > 0:
+        roi_matrix = roi_matrix[:-diff_shapes[0],:]
+    elif diff_shapes[0] < 0:
+       im_rgb_backup = im_rgb_backup[:diff_shapes[0],:] 
+
+    if diff_shapes[1] > 0:
+        roi_matrix = roi_matrix[:,:-diff_shapes[1]]
+    elif diff_shapes[1] < 0:
+       im_rgb_backup = im_rgb_backup[:,:diff_shapes[1]] 
+
+    roi_idxs = list(np.unique(roi_matrix))
+    roi_idxs.remove(0)
+    
+    for k, idx in enumerate(roi_idxs):
+        crop = im_rgb_backup[roi_matrix == idx].reshape(block_width, block_height, 3)
+        cv2.imwrite(f'{output_dir}/{pagename}_ROI_{str(k)}.png', crop)
+
+def return_erased_crops(num_patches, num_random_samples, dict_scores, mask_crop_array, crop):
+    lists_idxs = [
+        list(dict_scores.keys())[:num_patches],
+        list(dict_scores.keys())[-num_patches:]
+    ]
+
+    for j in range(num_random_samples):
+        lists_idxs.append(random.sample(list(dict_scores.keys()), num_patches))
+
+    list_erased_crops = []
+
+    for list_idxs in lists_idxs:
+        rois_to_mask = np.zeros_like(mask_crop_array)
+        for roi_idx in list_idxs:
+            super_pixel = mask_crop_array == roi_idx
+            rois_to_mask += super_pixel
+        
+        rois_to_mask = np.ones_like(rois_to_mask) - rois_to_mask
+        rois_to_mask_3d = rois_to_mask[:, :, None] * np.ones(3, dtype=int)[None, None, :]
+
+        crop_array = np.array(deepcopy(crop))
+        masked_crop_array = crop_array*rois_to_mask_3d
+        masked_crop_pil = Image.fromarray(np.uint8(masked_crop_array))
+
+        list_erased_crops.append(masked_crop_pil)
+
+    return list_erased_crops

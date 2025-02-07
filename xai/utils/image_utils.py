@@ -1,17 +1,180 @@
-import random, os, glob, cv2
+import random, os, cv2, imageio, torch
 import pickle as pkl
 import numpy as np
-from tqdm import tqdm
-import torch
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
 from captum.attr import visualization as viz
+from PIL import Image
+from copy import deepcopy
+
+XAI_ROOT = "./xai"
 
 ### ################ ###
 ### IMAGE TRANSFORMS ###
 ### ################ ###
-def apply_transforms_crops(img, mask, mean, std):
+def create_image_grid(
+        crop_size:int, 
+        overlap:int, 
+        img: Image):
+    """
+    Args:
+        crop_size (int): size of the (square) crop
+        overlap (int): overlap (n_pixels) between adjacent crops
+        img (PIL.Image): image to be cropped
+    
+    Returns:
+        grid_dict (dict): dictionary with keys as the coordinates of the grid and values as the coordinates of the crop
+        num_cols (int): number of columns in the grid
+        num_rows (int): number of rows in the grid
+    """
+    img_w, img_h = img.size
+    num_cols = (img_w - overlap)//(crop_size - overlap)
+    num_rows = (img_h - overlap)//(crop_size - overlap)
 
+    grid_w = (num_cols - 1)*(crop_size - overlap) + crop_size
+    grid_h = (num_rows - 1)*(crop_size - overlap) + crop_size
+
+    UL_x = int((img_w - grid_w)/2)
+    UL_y = int((img_h - grid_h)/2)
+
+    grid_dict = {}
+
+    for i in range(num_rows):
+        for j in range(num_cols):
+            UL_x_grid = UL_x + j*(crop_size - overlap)
+            UL_y_grid = UL_y + i*(crop_size - overlap)
+            BR_x_grid = UL_x_grid + crop_size
+            BR_y_grid = UL_y_grid + crop_size
+            grid_dict[f'{i}_{j}'] = (UL_x_grid, UL_y_grid, BR_x_grid, BR_y_grid)
+    
+    return grid_dict, num_cols, num_rows
+
+def generate_instance_mask(
+        inst_width: int,
+        inst_height: int,
+        block_width: int,
+        block_height: int):
+
+    num_columns, num_rows = int(inst_width/block_width) + 1, int(inst_height/block_height) + 1
+    
+    idx = np.arange(int(num_columns*num_rows), dtype=np.uint16)
+    np.random.shuffle(idx)
+    mask = idx.reshape((num_rows, num_columns)).repeat(block_height, axis = 0).repeat(block_width, axis = 1)*1000
+
+    mask_img = Image.fromarray(mask)
+    mask_width, mask_height = mask_img.size
+
+    left, right = (mask_width - inst_width)/2, (mask_width + inst_width)/2
+    top, bottom = (mask_height - inst_height)/2, (mask_height + inst_height)/2
+
+    mask = mask_img.crop((left, top, right, bottom))
+    mask = mask.crop((0, 0, inst_width, inst_height))
+
+    mask.save(f"{XAI_ROOT}/def_mask_{block_width}x{block_height}.png")
+
+# def get_crops_bbxs(image, final_width, final_height):
+#     img_width, img_height = image.size
+
+#     vert_cuts = img_width // final_width
+#     hor_cuts = img_height // final_height
+    
+#     h_overlap = int((((vert_cuts+1)*final_width) - img_width) / vert_cuts)
+#     v_overlap = int((((hor_cuts+1)*final_height) - img_height) / hor_cuts)
+
+#     crops_bbxs = list()
+
+#     for h_cut in range(0, hor_cuts):
+#         for v_cut in range(0, vert_cuts):
+#             left = v_cut * (final_width - h_overlap)
+#             right = left + final_width
+#             top = h_cut * (final_height - v_overlap)
+#             bottom = top + final_height
+
+#             crops_bbxs.append((left, top, right, bottom))
+
+#     return crops_bbxs
+
+def get_crops_bbxs(image, crop_width, crop_height):
+    crop_bbxs = list()
+    img_width, img_height = image.size
+    
+    num_crops_x = 1 + (img_width // crop_width)
+    num_crops_y = 1 + (img_height // crop_height)
+    
+    overlap_x = (num_crops_x * crop_width - img_width) // max(1, num_crops_x - 1)
+    overlap_y = (num_crops_y * crop_height - img_height) // max(1, num_crops_y - 1)
+    
+    for i in range(0, num_crops_x):
+        for j in range(0, num_crops_y):
+            left = i * (crop_width - overlap_x)
+            top = j * (crop_height - overlap_y)
+            right = left + crop_width
+            bottom = top + crop_height
+            
+            crop_bbxs.append((left, top, right, bottom))
+    
+    return crop_bbxs
+
+def extract_image_crops(
+        file_name:str, 
+        block_width:int, 
+        block_height:int, 
+        crop_size:int, 
+        overlap:int):
+    """
+    Args:
+        file_name (str): name of the image file (without extension) to be cropped
+        block_width (int), block_height (int): dimensions of the mask blocks
+        crop_size (int): size of the (square) crop
+        overlap (int): overlap (n_pixels) between adjacent crops
+    
+    Returns:
+        None -> saves the cropped images and masks in the './data/<file_name>/crops' directory
+    """
+    
+    try:
+        page_img = Image.open(f"{XAI_ROOT}/data/{file_name}.jpg")
+    except:
+        print(f"'{file_name}' not found in './data' directory.")
+
+    try:
+        mask_img = Image.open(f"{XAI_ROOT}/explanations/crop_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")    
+    except:
+        print(f"'{file_name}_mask_blocks_{block_width}x{block_height}.png' not found in './explanations/crop_level/{file_name}' directory.")
+
+    GD, NC, NR = create_image_grid(crop_size, overlap, mask_img)
+
+    img_array = np.array(deepcopy(page_img).convert('RGB'))[:, :, ::-1]
+    mask_array = np.array(deepcopy(mask_img).convert('RGB'))[:, :, ::-1]
+
+    list_images, list_masks = list(), list()
+
+    if not os.path.exists(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops"):
+        os.mkdir(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops")
+    
+    for i in range(NR):
+        for j in range(NC):
+            x0, y0, x1, y1 = GD[f'{i}_{j}']
+            
+            img_crop = page_img.crop((x0, y0, x1, y1))
+            img_crop.save(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops/{file_name}_{crop_size}_{overlap}_{i}_{j}.jpg")
+
+            mask_crop = mask_img.crop((x0, y0, x1, y1))
+            mask_crop.save(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops/{file_name}_mask_blocks_{block_width}x{block_height}_{crop_size}_{overlap}_{i}_{j}.png")
+
+            img_array_copy = deepcopy(img_array)
+            mask_array_copy = deepcopy(mask_array)
+
+            cv2.rectangle(img_array_copy, (x0, y0), (x1, y1), (0, 0, 255), 5)
+            cv2.rectangle(mask_array_copy, (x0, y0), (x1, y1), (0, 0, 255), 5)
+
+            list_images.append(img_array_copy[:, :, ::-1])
+            list_masks.append(mask_array_copy[:, :, ::-1])
+    
+    # Saves a GIF file which describes the cropping process
+    imageio.mimsave(f'{XAI_ROOT}/explanations/crop_level/{file_name}/{file_name}_crops.gif', list_images, duration=1.25)
+
+def apply_transforms_crops(img, mask, mean, std):
     img_transforms = T.Compose([
         T.ToTensor(),
         T.Normalize(mean, std)
