@@ -59,6 +59,31 @@ def split_and_copy_files(dataset, source_dir, class_name, train_replicas, random
     class_n_train_instances = len(os.listdir(f"{EXP_DIR}/train/{class_name}"))
     print(f"Class {c} -> Train Instances: {class_n_train_instances}")
 
+def load_model(num_classes, mode, cp_base, phase, test_id, exp_metadata, device):
+    last_cp = None
+    model = NN_Classifier(num_classes=num_classes, mode=mode, cp_path=cp_base)
+    
+    if phase == "train":
+        if "refine" in test_id:
+            base_id, _ = test_id.split(':')
+            last_cp_path = f"{CLASSIFIER_ROOT}/tests/{base_id}/output/checkpoints/Test_{base_id}_MLC_val_best_model.pth"
+            last_cp = torch.load(last_cp_path)
+            model.load_state_dict(last_cp['model_state_dict'])
+        
+        if "EPOCHS_COMPLETED" in exp_metadata:
+            epochs_completed = exp_metadata["EPOCHS_COMPLETED"]
+            print(f"{epochs_completed} epochs have already been completed: the Fine-Tuning process will be ended with the remaining {EPOCHS} epochs")
+            last_cp_path = f"{OUTPUT_DIR}/checkpoints/Test_{test_id}_MLC_last_checkpoint.pth"
+            last_cp = torch.load(last_cp_path)
+            model.load_state_dict(last_cp['model_state_dict'])
+    
+    if phase == "test":
+        cp_to_test = f"{OUTPUT_DIR}/checkpoints/Test_{test_id}_MLC_val_best_model.pth"
+        model.load_state_dict(torch.load(cp_to_test)['model_state_dict'])
+        model.eval() 
+    
+    return model.to(device), last_cp
+
 ### #### ###
 ### MAIN ###
 ### #### ###    
@@ -135,32 +160,18 @@ if __name__ == '__main__':
         print("PHASE 2 -> MODEL FINE-TUNING...")    
         os.makedirs(f"{OUTPUT_DIR}/checkpoints", exist_ok=True)
         torch.backends.cudnn.benchmark = True
-        last_cp = None
+        # last_cp = None
                 
         train_ds = Train_Test_DataLoader(directory=f"{EXP_DIR}/train", classes=list(CLASSES_DATA.keys()), batch_size=8, img_crop_size=CROP_SIZE, mult_factor=TRAIN_DL_MF, weighted_sampling=True, phase='train', mean=mean_, std=std_, shuffle=True)
         val_ds = Train_Test_DataLoader(directory=f"{EXP_DIR}/test", classes=list(CLASSES_DATA.keys()), batch_size=8, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='val', mean=mean_, std=std_, shuffle=False)
         tds, t_dl = train_ds.load_data()
         vds, v_dl = val_ds.load_data()
 
-        model = NN_Classifier(num_classes=len(CLASSES_DATA), mode=FT_MODE, cp_path=MODEL_PATH)
-    
-        if "refine" in TEST_ID:
-            BASE_ID, _ = TEST_ID.split(':')
-            last_cp_path = f"{CLASSIFIER_ROOT}/tests/{BASE_ID}/output/checkpoints/Test_{BASE_ID}_MLC_val_best_model.pth"
-            last_cp = torch.load(last_cp_path)
-            model.load_state_dict(last_cp['model_state_dict'])
-        
+        model, last_cp = load_model(len(CLASSES_DATA), FT_MODE, MODEL_PATH, "train", TEST_ID, EXP_METADATA, DEVICE)
         if "EPOCHS_COMPLETED" in EXP_METADATA:
             epochs_completed = EXP_METADATA["EPOCHS_COMPLETED"]
             EPOCHS = EPOCHS - epochs_completed
-            print(f"{epochs_completed} epochs have already been completed: the Fine-Tuning process will be ended with the remaining {EPOCHS} epochs")
-            
-            last_cp_path = f"{OUTPUT_DIR}/checkpoints/Test_{TEST_ID}_MLC_last_checkpoint.pth"
-            last_cp = torch.load(last_cp_path)
-            model.load_state_dict(last_cp['model_state_dict'])
-         
-        model.to(DEVICE)
-        
+  
         pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f'Number of trainable parameters: {pytorch_total_params}')
         
@@ -181,10 +192,7 @@ if __name__ == '__main__':
         for metric in ["loss", "accuracy"]: plot_metric(metric, OUTPUT_DIR, TEST_ID)
         
         cp_to_test = f"{OUTPUT_DIR}/checkpoints/Test_{TEST_ID}_MLC_val_best_model.pth"
-        model = NN_Classifier(num_classes=len(CLASSES_DATA), mode='frozen', cp_path=MODEL_PATH)
-        model.to(DEVICE)
-        model.load_state_dict(torch.load(cp_to_test)['model_state_dict']) 
-        model.eval()
+        model, _ = load_model(len(CLASSES_DATA), "frozen", MODEL_PATH, "test", TEST_ID, EXP_METADATA, DEVICE)
 
         mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}")
         dl = Train_Test_DataLoader(directory=f"{EXP_DIR}/test", classes=list(CLASSES_DATA.keys()), batch_size=1, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='test', mean=mean_, std=std_, shuffle=True)

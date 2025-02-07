@@ -1,4 +1,4 @@
-import torch, glob, os, cv2, numbers, random
+import torch, glob, os, cv2, numbers
 import numpy as np
 import pickle as pkl
 import torchvision.datasets as datasets
