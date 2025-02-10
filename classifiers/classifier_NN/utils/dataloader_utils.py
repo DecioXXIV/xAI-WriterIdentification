@@ -174,7 +174,6 @@ def all_crops(img, size, mult_factor):
 
     return crops
 
-
 ### ########### ###
 ### DATALOADERS ###
 ### ########### ###

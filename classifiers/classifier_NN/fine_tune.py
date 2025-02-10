@@ -60,8 +60,9 @@ def split_and_copy_files(dataset, source_dir, class_name, train_replicas, random
     print(f"Class {c} -> Train Instances: {class_n_train_instances}")
 
 def load_model(num_classes, mode, cp_base, phase, test_id, exp_metadata, device):
-    last_cp = None
     model = NN_Classifier(num_classes=num_classes, mode=mode, cp_path=cp_base)
+    output_dir = f"{CLASSIFIER_ROOT}/tests/{test_id}/output"
+    last_cp = None
     
     if phase == "train":
         if "refine" in test_id:
@@ -73,12 +74,12 @@ def load_model(num_classes, mode, cp_base, phase, test_id, exp_metadata, device)
         if "EPOCHS_COMPLETED" in exp_metadata:
             epochs_completed = exp_metadata["EPOCHS_COMPLETED"]
             print(f"{epochs_completed} epochs have already been completed: the Fine-Tuning process will be ended with the remaining {EPOCHS} epochs")
-            last_cp_path = f"{OUTPUT_DIR}/checkpoints/Test_{test_id}_MLC_last_checkpoint.pth"
+            last_cp_path = f"{output_dir}/checkpoints/Test_{test_id}_MLC_last_checkpoint.pth"
             last_cp = torch.load(last_cp_path)
             model.load_state_dict(last_cp['model_state_dict'])
     
     if phase == "test":
-        cp_to_test = f"{OUTPUT_DIR}/checkpoints/Test_{test_id}_MLC_val_best_model.pth"
+        cp_to_test = f"{output_dir}/checkpoints/Test_{test_id}_MLC_val_best_model.pth"
         model.load_state_dict(torch.load(cp_to_test)['model_state_dict'])
         model.eval() 
     
@@ -171,7 +172,7 @@ if __name__ == '__main__':
         if "EPOCHS_COMPLETED" in EXP_METADATA:
             epochs_completed = EXP_METADATA["EPOCHS_COMPLETED"]
             EPOCHS = EPOCHS - epochs_completed
-  
+        
         pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f'Number of trainable parameters: {pytorch_total_params}')
         
