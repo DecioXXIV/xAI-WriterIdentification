@@ -175,4 +175,5 @@ xai/data/*
 xai/explanations/*
 xai/mask_images/*
 
-evals/*
+evals/bvr_comparisons/*
+evals/faithfulness/*
