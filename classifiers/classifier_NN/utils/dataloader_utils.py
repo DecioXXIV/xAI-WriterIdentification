@@ -14,7 +14,6 @@ LOG_ROOT = "./log"
 ### DATASETS STATS ###
 ### ############## ###
 def compute_mean_and_std(root):
-
     types = ('*.png', '*.jpg')
     training_images = []
     for files in types:

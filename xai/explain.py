@@ -32,28 +32,23 @@ def get_args():
     return parser.parse_args()
 
 def load_model(model_type, num_classes, cp_base, checkpoint_path, device):
+    model = None
+
     if model_type == "NN":
         model = NN_Classifier(num_classes=num_classes, mode="frozen", cp_path=cp_base)
         model.load_state_dict(torch.load(checkpoint_path)['model_state_dict'])
         model.eval()
         model.to(device)
         
-        return model
+    return model
 
 def setup_explainer(xai_algorithm, args, model_type, model, dir_name, mean, std, device):
     explainer = None
+    
     if xai_algorithm == "LimeBase":
-        explainer = LimeBaseExplainer(
-            classifier=f"classifier_{model_type}",
-            test_id=args.test_id,
-            dir_name=dir_name,
-            block_size=(args.block_width, args.block_height),
-            model=model,
-            surrogate_model=args.surrogate_model,
-            mean=mean,
-            std=std,
-            device=device
-        )
+        explainer = LimeBaseExplainer(classifier=f"classifier_{model_type}", test_id=args.test_id,
+            dir_name=dir_name, block_size=(args.block_width, args.block_height), model=model,
+            surrogate_model=args.surrogate_model, mean=mean, std=std, device=device)
     
     return explainer
 
@@ -101,6 +96,8 @@ if __name__ == '__main__':
         exit(1)
         
     MODEL_TYPE = EXP_METADATA["MODEL_TYPE"]
+
+    # Hyperparameters
     BLOCK_WIDTH, BLOCK_HEIGHT = args.block_width, args.block_height
     CROP_SIZE = args.crop_size
     XAI_ALGORITHM = args.xai_algorithm
@@ -162,13 +159,14 @@ if __name__ == '__main__':
     
     explainer = setup_explainer(XAI_ALGORITHM, args, MODEL_TYPE, model, dir_name, mean, std, DEVICE)
     
-    ### Explainability Process
     BASE_ID, RET_ID = None, None
     try: BASE_ID, RET_ID = TEST_ID.split(':')
     except: BASE_ID = TEST_ID
     
     DATASET = EXP_METADATA["DATASET"]
     SOURCE_DATA_DIR = f"{DATASET_ROOT}/{DATASET}/processed"
+
+    # Retrieve the Instances (with the corresponding Labels) to be explained
     instances, labels = list(), list()
     
     class_to_idx = None
@@ -188,7 +186,7 @@ if __name__ == '__main__':
         instances.extend(test_instances)
         labels.extend(test_labels)
         
-    # 2 -> Explanation Process
+    # Explanation Process
     OVERLAP = CROP_SIZE - 25
 
     for instance_name, label in zip(instances, labels):

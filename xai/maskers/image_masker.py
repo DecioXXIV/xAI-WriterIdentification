@@ -41,6 +41,11 @@ class ImageMasker:
             self.training_mean, _ = pickle.load(f)
     
     def find_patches_coordinates(self, instance_name) -> list:
+        """
+        Given the 'instance_name', calculates the coordinates of patches to be masked.
+        Returns a list of patches: each of them with their respective coordinates and score.
+        """
+
         filename_parts = instance_name.split("_")
         h_cut, v_cut = int(filename_parts[1]), int(filename_parts[2])
         
@@ -88,6 +93,7 @@ class ImageMasker:
             print(f"*** IN RELATION TO THE EXPERIMENT '{self.test_id}' AND THE SETTING (xai_algorithm={self.xai_algorithm}-{self.xai_mode}, mode={self.mask_mode}, mask_rate={self.mask_rate}), THE INSTANCES HAVE ALREADY BEEN MASKED! ***")
             exit(1)
         
+        # Masking Process
         else:
             for inst, path in zip(self.instances, self.paths): 
                 _ = self.mask_full_instance(inst, path)
@@ -96,8 +102,13 @@ class ImageMasker:
                 c = int(inst_name[0:4])
                         
                 src_path = f"{self.INSTANCE_DIR_MODE_RATE}/{inst_name}_masked_{self.mask_mode}_{self.mask_rate}{inst_type}"
+
+                # 'train' Instances are masked to be then used for "ret" Experiments: 
                 if self.inst_set == "train": dest_dir = f"{DATASET_ROOT}/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}"
-                if self.inst_set == "test": dest_dir = f"{EVAL_ROOT}/faithfulness/{TEST_ID}/test_set_masked_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}/{c}"
+
+                # 'test' Instances are masked to be then used for the "Faithfulness" evaluation
+                elif self.inst_set == "test": dest_dir = f"{EVAL_ROOT}/faithfulness/{TEST_ID}/test_set_masked_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}/{c}"
+
                 os.makedirs(dest_dir, exist_ok=True)
                 os.system(f"cp {src_path} {dest_dir}/{inst_name}{inst_type}")
             
@@ -112,6 +123,10 @@ class SaliencyMasker(ImageMasker):
         super().__init__(*args, **kwargs)
     
     def mask_full_instance(self, full_img_name, full_img_path):
+        """
+        This method performs the Saliency masking for a given instance.
+        """
+
         print(f"Processing Saliency Masking for Instance: {full_img_name}")
         full_img = Image.open(full_img_path)
         
@@ -160,10 +175,18 @@ class SaliencyMasker(ImageMasker):
         full_img_to_mask_tensor = T.ToTensor()(full_img_to_mask)
         
         os.makedirs(f"{self.INSTANCE_DIR_MODE_RATE}/removed_patches", exist_ok=True)
+
+        """
+        Saliency Masking Process:
+        Patches are sorted by decreasing Attribution Score and masking is performed
+        one patch at a time, until the required "mask_rate" is reached. 
+
+        Saliency: masking is stopped if the currently examined patch is related to
+        a not-positive Attribution Score.
+        """
         
         check_array = np.ones(shape=(self.full_img_width, self.full_img_height))
         masked_patches, masked_area, idx  = 0, 0, 0
-        
         end_condition = False
         while not end_condition:
             left = df.iloc[idx]["Coordinates_Left"]
@@ -210,6 +233,9 @@ class RandomMasker(ImageMasker):
         super().__init__(*args, **kwargs)
     
     def mask_full_instance(self, full_img_name, full_img_path):
+        """
+        This method performs the Random masking for a given instance.
+        """
         print(f"Processing Random Masking for Instance: {full_img_name}")
         full_img = Image.open(full_img_path)
         
@@ -258,6 +284,15 @@ class RandomMasker(ImageMasker):
         full_img_to_mask_tensor = T.ToTensor()(full_img_to_mask)
         
         os.makedirs(f"{self.INSTANCE_DIR_MODE_RATE}/removed_patches", exist_ok=True)
+
+        """
+        Random Masking Process:
+        Masking is performed by drawing one (block_width, block_height)-sized
+        patch at a time.
+
+        Random: drawn patches do not follow the the rigid structure defined
+        by the Mask.
+        """
         
         check_array = np.ones(shape=(self.full_img_width, self.full_img_height))
         masked_patches, masked_area, idx  = 0, 0, 0

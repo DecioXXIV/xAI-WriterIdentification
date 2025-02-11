@@ -22,16 +22,9 @@ torch.backends.cudnn.benchmark = True
 ### LimeBase EXPLAINER ###
 ### ################## ###
 class LimeBaseExplainer:
-    def __init__(self,
-            classifier: str,
-            test_id: str,
-            dir_name: str,
-            block_size: Tuple[int, int],
-            model,
-            surrogate_model: str="LinReg",
-            mean=None,
-            std=None,
-            device=None):
+    def __init__(self, classifier: str, test_id: str, dir_name: str,
+            block_size: Tuple[int, int], model, surrogate_model: str="LinReg",
+            mean=None, std=None, device=None):
         
         self.classifier = classifier
         self.test_id = test_id
@@ -65,46 +58,8 @@ class LimeBaseExplainer:
 
         if not os.path.exists(f"{output_dir}/{scores_name}"):
             G, nc, nr = create_image_grid(crop_size, overlap, base_img)
-
-            # for i in tqdm(range(nr), leave=False):
-            #     for j in tqdm(range(nc), leave=False):
-            #         x0, y0, x1, y1 = G[f"{i}_{j}"]
-            #         img_crop = base_img.crop((x0, y0, x1, y1))
-            #         mask_crop = base_mask.crop((x0, y0, x1, y1))
-            #         mask_array = np.array(mask_crop)
-            #         idxs = np.unique(mask_array)
-
-            #         img, mask, _ = apply_transforms_crops(img_crop, mask_crop, self.mean_, self.std_)
-            #         img, mask = img.to(self.device), mask.to(self.device)
-
-            #         input_ = img.unsqueeze(0)
-            #         feature_mask = mask.unsqueeze(0)
-
-            #         attr_map_mean = np.zeros((crop_size, crop_size, 3))
-
-            #         for _ in range(n_iter):
-            #             attrs = lime.attribute(
-            #                 input_,
-            #                 target=label_idx,
-            #                 feature_mask=feature_mask,
-            #                 n_samples=40,
-            #                 perturbations_per_eval=16,
-            #                 show_progress=False
-            #             ).squeeze(0)
-
-            #             attr_map = attrs.permute(1, 2, 0).cpu().numpy()
-            #             attr_map_mean += attr_map
-                    
-            #         attr_map_mean /= n_iter
-
-            #         norm_attr = viz._normalize_image_attr(attr_map_mean, "all")
-            #         norm_attr_3d = np.repeat(norm_attr[:, :, None], 3, axis=2)
-
-            #         for idx in idxs:
-            #             super_pixel = norm_attr_3d[mask_array == idx]
-            #             if len(super_pixel) == self.block_width*self.block_height:
-            #                 scores[idx].append(np.mean(super_pixel))
             
+            # Iterate over the Grid and process each crop
             with tqdm(total=nr*nc, desc="Crop Processing") as pbar:
                 for i in range(nr):
                     for j in range(nc):
@@ -124,14 +79,9 @@ class LimeBaseExplainer:
                         attr_map_mean = np.zeros((crop_size, crop_size, 3))
 
                         for _ in range(n_iter):
-                            attrs = lime.attribute(
-                                input_,
-                                target=label_idx,
-                                feature_mask=feature_mask,
-                                n_samples=40,
-                                perturbations_per_eval=16,
-                                show_progress=False
-                            ).squeeze(0)
+                            attrs = lime.attribute(input_, target=label_idx,
+                                feature_mask=feature_mask, n_samples=40,
+                                perturbations_per_eval=16, show_progress=False).squeeze(0)
 
                             attr_map = attrs.permute(1, 2, 0).cpu().numpy()
                             attr_map_mean += attr_map

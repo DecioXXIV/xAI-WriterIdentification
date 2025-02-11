@@ -72,28 +72,6 @@ def generate_instance_mask(
 
     mask.save(f"{XAI_ROOT}/def_mask_{block_width}x{block_height}.png")
 
-# def get_crops_bbxs(image, final_width, final_height):
-#     img_width, img_height = image.size
-
-#     vert_cuts = img_width // final_width
-#     hor_cuts = img_height // final_height
-    
-#     h_overlap = int((((vert_cuts+1)*final_width) - img_width) / vert_cuts)
-#     v_overlap = int((((hor_cuts+1)*final_height) - img_height) / hor_cuts)
-
-#     crops_bbxs = list()
-
-#     for h_cut in range(0, hor_cuts):
-#         for v_cut in range(0, vert_cuts):
-#             left = v_cut * (final_width - h_overlap)
-#             right = left + final_width
-#             top = h_cut * (final_height - v_overlap)
-#             bottom = top + final_height
-
-#             crops_bbxs.append((left, top, right, bottom))
-
-#     return crops_bbxs
-
 def get_crops_bbxs(image, crop_width, crop_height):
     crop_bbxs = list()
     img_width, img_height = image.size
