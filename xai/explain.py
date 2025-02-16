@@ -4,7 +4,7 @@ from datetime import datetime
 from argparse import ArgumentParser
 
 from utils import load_metadata, save_metadata
-from classifiers.classifier_NN.model import NN_Classifier
+from classifiers.classifier_ResNet18.model import load_resnet18_classifier
 
 from .explainers.lime_base_explainer import LimeBaseExplainer
 from .utils.image_utils import generate_instance_mask, load_rgb_mean_std, get_crops_bbxs
@@ -12,6 +12,7 @@ from .utils.explanations_utils import get_instances_to_explain
 
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
+CLASSIFIERS_ROOT = "./classifiers"
 XAI_ROOT = "./xai"
 
 ### ################# ###
@@ -23,7 +24,7 @@ def get_args():
     parser.add_argument("-block_width", type=int, required=True)
     parser.add_argument("-block_height", type=int, required=True)
     parser.add_argument("-crop_size", type=int, required=True)
-    parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase", "GLimeBinomial"])
+    parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase"])
     parser.add_argument("-surrogate_model", type=str, required=True, choices=["LinReg", "Ridge"])
     parser.add_argument("-mode", type=str, required=True, choices=["base", "counterfactual_top_class"])
     parser.add_argument("-lime_iters", type=int, default=3)
@@ -31,29 +32,19 @@ def get_args():
 
     return parser.parse_args()
 
-def load_model(model_type, num_classes, cp_base, checkpoint_path, device):
-    if model_type == "NN":
-        model = NN_Classifier(num_classes=num_classes, mode="frozen", cp_path=cp_base)
-        model.load_state_dict(torch.load(checkpoint_path)['model_state_dict'])
-        model.eval()
-        model.to(device)
-        
-        return model
+def load_model(model_type, num_classes, cp_base, test_id, exp_metadata, device):
+    model, last_cp = None, None
+    if model_type == "ResNet18":
+        model, last_cp = load_resnet18_classifier(num_classes, "frozen", cp_base, "test", test_id, exp_metadata, device)
+    
+    return model, last_cp
 
 def setup_explainer(xai_algorithm, args, model_type, model, dir_name, mean, std, device):
     explainer = None
     if xai_algorithm == "LimeBase":
-        explainer = LimeBaseExplainer(
-            classifier=f"classifier_{model_type}",
-            test_id=args.test_id,
-            dir_name=dir_name,
-            block_size=(args.block_width, args.block_height),
-            model=model,
-            surrogate_model=args.surrogate_model,
-            mean=mean,
-            std=std,
-            device=device
-        )
+        explainer = LimeBaseExplainer(classifier=f"classifier_{model_type}", test_id=args.test_id, 
+            dir_name=dir_name, block_size=(args.block_width, args.block_height), model=model,
+            surrogate_model=args.surrogate_model, mean=mean, std=std, device=device)
     
     return explainer
 
@@ -100,7 +91,6 @@ if __name__ == '__main__':
         print(e)
         exit(1)
         
-    MODEL_TYPE = EXP_METADATA["MODEL_TYPE"]
     BLOCK_WIDTH, BLOCK_HEIGHT = args.block_width, args.block_height
     CROP_SIZE = args.crop_size
     XAI_ALGORITHM = args.xai_algorithm
@@ -109,10 +99,9 @@ if __name__ == '__main__':
     LIME_ITERS = args.lime_iters
     REMOVE_PATCHES = args.remove_patches
 
-    CLASSIFIER_ROOT = f"./classifiers/classifier_{MODEL_TYPE}"
-    cp_base = f"{CLASSIFIER_ROOT}/../cp/Test_3_TL_val_best_model.pth"
-    cp = f"{CLASSIFIER_ROOT}/tests/{TEST_ID}/output/checkpoints/Test_{TEST_ID}_MLC_val_best_model.pth"
+    cp_base = f"{CLASSIFIERS_ROOT}/cp/Test_3_TL_val_best_model.pth"
 
+    MODEL_TYPE = EXP_METADATA["MODEL_TYPE"]
     CLASSES_DATA = EXP_METADATA["CLASSES"]
     classes = list(CLASSES_DATA.keys())
     num_classes = len(classes)
@@ -154,11 +143,11 @@ if __name__ == '__main__':
     if DEVICE == "cuda": print("Device:", torch.cuda.get_device_name(0))
     else: print("Device: CPU")
     
-    model = load_model(MODEL_TYPE, num_classes, cp_base, cp, DEVICE)
+    model, _ = load_model(MODEL_TYPE, num_classes, cp_base, TEST_ID, EXP_METADATA, DEVICE)
     print("Model Loaded!")
     print("Classes:", classes)
     
-    mean, std = load_rgb_mean_std(f"{CLASSIFIER_ROOT}/tests/{TEST_ID}")
+    mean, std = load_rgb_mean_std(f"{CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}")
     
     explainer = setup_explainer(XAI_ALGORITHM, args, MODEL_TYPE, model, dir_name, mean, std, DEVICE)
     
@@ -172,7 +161,7 @@ if __name__ == '__main__':
     instances, labels = list(), list()
     
     class_to_idx = None
-    with open(f"{CLASSIFIER_ROOT}/tests/{TEST_ID}/output/class_to_idx.pkl", "rb") as f: class_to_idx = pickle.load(f)
+    with open(f"{CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}/output/class_to_idx.pkl", "rb") as f: class_to_idx = pickle.load(f)
 
     for c, c_type in CLASSES_DATA.items():
         class_source = None
@@ -194,7 +183,7 @@ if __name__ == '__main__':
     for instance_name, label in zip(instances, labels):
         explain_instance(instance_name, label, explainer, CROP_SIZE, OVERLAP, LIME_ITERS, XAI_METADATA, REMOVE_PATCHES)
     
-    os.system(f"cp {CLASSIFIER_ROOT}/tests/{TEST_ID}/rgb_train_stats.pkl {XAI_ROOT}/explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
+    os.system(f"cp {CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}/rgb_train_stats.pkl {XAI_ROOT}/explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
     EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["XAI_END_TIMESTAMP"] = str(datetime.now())
     save_metadata(EXP_METADATA, EXP_METADATA_PATH)
     
