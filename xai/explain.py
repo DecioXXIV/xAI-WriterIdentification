@@ -41,6 +41,7 @@ def load_model(model_type, num_classes, cp_base, test_id, exp_metadata, device):
 
 def setup_explainer(xai_algorithm, args, model_type, model, dir_name, mean, std, device):
     explainer = None
+    
     if xai_algorithm == "LimeBase":
         explainer = LimeBaseExplainer(classifier=f"classifier_{model_type}", test_id=args.test_id, 
             dir_name=dir_name, block_size=(args.block_width, args.block_height), model=model,
@@ -151,13 +152,14 @@ if __name__ == '__main__':
     
     explainer = setup_explainer(XAI_ALGORITHM, args, MODEL_TYPE, model, dir_name, mean, std, DEVICE)
     
-    ### Explainability Process
     BASE_ID, RET_ID = None, None
     try: BASE_ID, RET_ID = TEST_ID.split(':')
     except: BASE_ID = TEST_ID
     
     DATASET = EXP_METADATA["DATASET"]
     SOURCE_DATA_DIR = f"{DATASET_ROOT}/{DATASET}/processed"
+
+    # Retrieve the Instances (with the corresponding Labels) to be explained
     instances, labels = list(), list()
     
     class_to_idx = None
@@ -177,7 +179,7 @@ if __name__ == '__main__':
         instances.extend(test_instances)
         labels.extend(test_labels)
         
-    # 2 -> Explanation Process
+    # Explanation Process
     OVERLAP = CROP_SIZE - 25
 
     for instance_name, label in zip(instances, labels):

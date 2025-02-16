@@ -19,6 +19,22 @@ def get_args():
     return parser.parse_args()
     
 def process_images(class_name, class_type, dataset, test_id, model_type, final_width, final_height):
+    """
+    Given a class and its 'class_type', processes and prepares its instances for the fine-tuning step.
+    (final_width, final_height)-sized crops are extracted from each instance.
+
+    Standard: final_width = 902, final_height = 1279
+
+    Args:
+        class_name (str): Name of the class
+        class_type (str): Type of the class, 'base' or 'masked_saliency/random_maskrate_xaialgorithm' (i.e.: 'masked_saliency_0.1_LimeBase')
+        dataset (str): Dataset name
+        test_id (str): Unique test identifier
+        model_type (str): Model type used in the experiment
+        final_width (int): Desired width of the processed images (902)
+        final_height (int): Desired height of the processed images (1279)
+    """
+
     # Set 'source' and 'destination' for the current class, basing on its 'class_type'
     class_source, class_dest = None, None
     if class_type == "base": 
@@ -35,12 +51,7 @@ def process_images(class_name, class_type, dataset, test_id, model_type, final_w
         img = Image.open(f"{class_source}/{file}")
         img_width, img_height = img.size
         
-        """Calculate the number of cuts, basing on...
-        - Current image dimensions
-        - Final dimensions (width=902, height=1279)
-        """
-        
-        # Apply padding, if necessary
+        # Apply (symmetrical) padding, if necessary
         edited = False
         
         if (final_width > img_width) or (final_height > img_height):
@@ -61,7 +72,7 @@ def process_images(class_name, class_type, dataset, test_id, model_type, final_w
                     
         if edited: img.save(f"{class_source}/{file}")
         
-        # Extraction of 902x1279 images from the 'full' images
+        # Extract 'final_width'x'final_height' from the 'full' image
         vert_cuts, hor_cuts = get_vert_hor_cuts(dataset)
         h_overlap = max(1, int((((vert_cuts) * final_width) - img_width) / vert_cuts))
         v_overlap = max(1, int((((hor_cuts) * final_height) - img_height) / hor_cuts))
@@ -77,14 +88,23 @@ def process_images(class_name, class_type, dataset, test_id, model_type, final_w
                 subpage.save(f"{class_dest}/{file[:-4]}_{h_cut}_{v_cut}{file[-4:]}")
 
 def copy_not_masked_test_instances(class_name, class_type, dataset, test_id, model_type):
-    """This function is specific for the 'ret' Experiments.
-    Its purpose is to include the Test Instances (selected with specific
-    rules depending on the employed Dataset) in the Data Preparation process"""
+    """
+    Copies 'test' instances that are not masked into the 'processed' dataset directory.
+    This function is specific to "ret" experiments, where only 'train' instances are masked.
+
+    Args:
+        class_name (str): Name of the class.
+        class_type (str): Type of the class.
+        dataset (str): Dataset name.
+        test_id (str): Unique test identifier.
+        model_type (str): Model type used in the experiment.
     
-    # In the "ret" Experiments, the 'test_id' is composed by two parts
-    # base_id -> Test Name (eg: CEDAR-Letter-1)
-    # ret_id -> Re-Training specifications (eg: ret0.1_saliency_all)
+    """
+
     base_id, _ = test_id.split(':')
+    # In "ret" Experiments, the 'test_id' is composed by two parts
+        # base_id -> Test Name (eg: CEDAR-Letter-1)
+        # ret_id -> Re-Training specifications (eg: ret0.1_saliency_all)
     
     class_source = f"{DATASET_ROOT}/{dataset}/{class_name}" 
     class_dest = f"{DATASET_ROOT}/{dataset}/{class_name}-{base_id}_{model_type}_{class_type}"
@@ -128,9 +148,11 @@ if __name__ == '__main__':
     
     os.makedirs(f"{DATASET_ROOT}/{DATASET}/processed", exist_ok = True)
     
+    # If the current experiment is "ret", retrieve the original 'test' instances first
     if RET_ID is not None:
         for c, c_type in CLASSES_DATA.items(): copy_not_masked_test_instances(c, c_type, DATASET, TEST_ID, MODEL_TYPE)
     
+    # Process and extract sub-images for each class
     for c, c_type in CLASSES_DATA.items():
         process_images(c, c_type, DATASET, BASE_ID, MODEL_TYPE, FINAL_WIDTH, FINAL_HEIGHT)
     

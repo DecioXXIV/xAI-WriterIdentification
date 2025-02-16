@@ -169,7 +169,7 @@ log/*.json
 
 bvr_comparisons/tests/*
 
-classifiers/classifier_NN/tests/*
+classifiers/classifier_ResNet18/tests/*
 
 xai/data/*
 xai/explanations/*

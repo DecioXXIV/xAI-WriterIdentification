@@ -59,6 +59,7 @@ class LimeBaseExplainer:
         if not os.path.exists(f"{output_dir}/{scores_name}"):
             G, nc, nr = create_image_grid(crop_size, overlap, base_img)
             
+            # Iterate over the Grid and process each crop
             with tqdm(total=nr*nc, desc="Crop Processing") as pbar:
                 for i in range(nr):
                     for j in range(nc):
@@ -78,14 +79,9 @@ class LimeBaseExplainer:
                         attr_map_mean = np.zeros((crop_size, crop_size, 3))
 
                         for _ in range(n_iter):
-                            attrs = lime.attribute(
-                                input_,
-                                target=label_idx,
-                                feature_mask=feature_mask,
-                                n_samples=40,
-                                perturbations_per_eval=16,
-                                show_progress=False
-                            ).squeeze(0)
+                            attrs = lime.attribute(input_, target=label_idx,
+                                feature_mask=feature_mask, n_samples=40,
+                                perturbations_per_eval=16, show_progress=False).squeeze(0)
 
                             attr_map = attrs.permute(1, 2, 0).cpu().numpy()
                             attr_map_mean += attr_map
