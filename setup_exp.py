@@ -13,10 +13,10 @@ def get_args():
     
     # General parameters
     parser.add_argument("-test_id", type=str, required=True, help="ID for the new Experiment to be performed")
-    parser.add_argument("-model_type", type=str, required=True, choices=['NN', 'GB', 'SVM'], help="Classifier Type")
+    parser.add_argument("-model_type", type=str, required=True, choices=["ResNet18"], help="Classifier Type")
 
     # Data Preparation parameters
-    parser.add_argument("-dataset", type=str, required=True, choices=['CEDAR_Letter', 'CVL', 'VatLat653'], help="Dataset employed in the experiment")
+    parser.add_argument("-dataset", type=str, required=True, choices=["CEDAR_Letter", "CVL", "VatLat653"], help="Dataset employed in the experiment")
     parser.add_argument("-classes", type=str, required=True, help="Comma-separated list of classes")
     parser.add_argument("-class_types", type=str, required=True, help="Comma-separated list of class types ('Base'/'Masked')")
     
@@ -53,8 +53,6 @@ def validate_and_process_args(args) -> dict:
 if __name__ == '__main__':
     args = get_args()
     TEST_ID = args.test_id
-    
-    os.makedirs(f"{LOG_ROOT}", exist_ok=True)
     EXP_METADATA_PATH = os.path.join(LOG_ROOT, f"{TEST_ID}-metadata.json")
     
     try:

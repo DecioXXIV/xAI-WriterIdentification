@@ -6,13 +6,13 @@ from sklearn.metrics import accuracy_score
 from utils import load_metadata, get_test_instance_patterns
 
 from xai.maskers.image_masker_new import SaliencyMasker, RandomMasker
-from classifiers.classifier_NN.fine_tune import load_model
-from classifiers.classifier_NN.utils.dataloader_utils import Train_Test_DataLoader, load_rgb_mean_std
-from classifiers.classifier_NN.utils.testing_utils import process_test_set
+from classifiers.classifier_ResNet18.model import load_resnet18_classifier
+from classifiers.classifier_ResNet18.utils.dataloader_utils import Train_Test_DataLoader, load_rgb_mean_std
+from classifiers.classifier_ResNet18.utils.testing_utils import process_test_set
 
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
-CLASSIFIER_ROOT = "./classifiers/classifier_NN"
+CLASSIFIERS_ROOT = "./classifiers"
 XAI_ROOT = "./xai"
 EVAL_ROOT = "./evals"
 
@@ -74,12 +74,15 @@ def mask_test_instances(instances, paths, test_id, exp_dir, mask_rate, mask_mode
     if bad_instances < 0.33 * total_instances: return True
     else: return False
 
-def test_model(test_id, classes, xai_algorithm, mask_rate, mask_mode):
+def test_model(model_type, test_id, classes, xai_algorithm, mask_rate, mask_mode):
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    CP_BASE = f"{CLASSIFIER_ROOT}/../cp/Test_3_TL_val_best_model.pth"
+    CP_BASE = f"{CLASSIFIERS_ROOT}/cp/Test_3_TL_val_best_model.pth"
     
-    model, _ = load_model(len(classes), "frozen", CP_BASE, "test", test_id, None, DEVICE)
-    EXP_DIR = f"{CLASSIFIER_ROOT}/tests/{test_id}"
+    model = None
+    if model_type == "ResNet18":
+        model, _ = load_resnet18_classifier(len(classes), "frozen", CP_BASE, "test", test_id, None, DEVICE)
+    
+    EXP_DIR = f"{CLASSIFIERS_ROOT}/classifier_{model_type}/tests/{test_id}"
     
     test_set_dir = f"{EVAL_ROOT}/faithfulness/{test_id}/test_set_masked_{mask_mode}_{mask_rate}_{xai_algorithm}"
     mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}")
@@ -140,7 +143,7 @@ if __name__ == '__main__':
         if mask_condition:
             mask_rate_performances = np.zeros(TEST_ITERATIONS)
             for iter in range(0, TEST_ITERATIONS):
-                mask_rate_performances[iter] = test_model(TEST_ID, CLASSES, XAI_ALGORITHM, mask_rate, MASK_MODE)
+                mask_rate_performances[iter] = test_model(MODEL_TYPE, TEST_ID, CLASSES, XAI_ALGORITHM, mask_rate, MASK_MODE)
                 torch.cuda.empty_cache()
             
             mean_perf = np.mean(mask_rate_performances)
