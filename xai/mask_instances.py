@@ -4,7 +4,7 @@ from typing import Tuple
 
 from utils import load_metadata, get_train_instance_patterns, get_test_instance_patterns
 
-from .maskers.image_masker_new import SaliencyMasker, RandomMasker
+from .maskers.image_masker import SaliencyMasker, RandomMasker
 
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"

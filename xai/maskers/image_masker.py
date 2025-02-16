@@ -88,34 +88,28 @@ class ImageMasker:
         TEST_ID = self.exp_metadata["TEST_ID"]
         MODEL_TYPE = self.exp_metadata["MODEL_TYPE"]
         EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
-        
-        if f"MASK_PROCESS_{self.inst_set}_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}_{self.xai_mode}_END_TIMESTAMP" in self.exp_metadata:
-            print(f"*** IN RELATION TO THE EXPERIMENT '{self.test_id}' AND THE SETTING (xai_algorithm={self.xai_algorithm}-{self.xai_mode}, mode={self.mask_mode}, mask_rate={self.mask_rate}), THE INSTANCES HAVE ALREADY BEEN MASKED! ***")
-            exit(1)
-        
-        # Masking Process
-        else:
-            for inst, path in zip(self.instances, self.paths): 
-                _ = self.mask_full_instance(inst, path)
+                
+        for inst, path in zip(self.instances, self.paths): 
+            _ = self.mask_full_instance(inst, path)
             
-                inst_name, inst_type = inst[:-4], inst[-4:]
-                c = int(inst_name[0:4])
+            inst_name, inst_type = inst[:-4], inst[-4:]
+            c = int(inst_name[0:4])
                         
-                src_path = f"{self.INSTANCE_DIR_MODE_RATE}/{inst_name}_masked_{self.mask_mode}_{self.mask_rate}{inst_type}"
+            src_path = f"{self.INSTANCE_DIR_MODE_RATE}/{inst_name}_masked_{self.mask_mode}_{self.mask_rate}{inst_type}"
 
-                # 'train' Instances are masked to be then used for "ret" Experiments: 
-                if self.inst_set == "train": dest_dir = f"{DATASET_ROOT}/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}"
+            # 'train' Instances are masked to be then used for "ret" Experiments: 
+            if self.inst_set == "train": dest_dir = f"{DATASET_ROOT}/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}"
 
-                # 'test' Instances are masked to be then used for the "Faithfulness" evaluation
-                elif self.inst_set == "test": dest_dir = f"{EVAL_ROOT}/faithfulness/{TEST_ID}/test_set_masked_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}/{c}"
+            # 'test' Instances are masked to be then used for the "Faithfulness" evaluation
+            elif self.inst_set == "test": dest_dir = f"{EVAL_ROOT}/faithfulness/{TEST_ID}/test_set_masked_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}/{c}"
 
-                os.makedirs(dest_dir, exist_ok=True)
-                os.system(f"cp {src_path} {dest_dir}/{inst_name}{inst_type}")
+            os.makedirs(dest_dir, exist_ok=True)
+            os.system(f"cp {src_path} {dest_dir}/{inst_name}{inst_type}")
             
-            print(f"*** END OF MASKING PROCESS FOR TEST: {self.test_id} ***\n")
+        print(f"*** END OF MASKING PROCESS FOR TEST: {self.test_id} ***\n")
         
-            self.exp_metadata[f"MASK_PROCESS_{self.inst_set}_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}_{self.xai_mode}_END_TIMESTAMP"] = str(datetime.now())
-            save_metadata(self.exp_metadata, EXP_METADATA_PATH)
+        self.exp_metadata[f"MASK_PROCESS_{self.inst_set}_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}_{self.xai_mode}_END_TIMESTAMP"] = str(datetime.now())
+        save_metadata(self.exp_metadata, EXP_METADATA_PATH)
 
 ### Subclasses ###
 class SaliencyMasker(ImageMasker):

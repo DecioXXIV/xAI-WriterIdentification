@@ -5,7 +5,7 @@ from sklearn.metrics import accuracy_score
 
 from utils import load_metadata, get_test_instance_patterns
 
-from xai.maskers.image_masker_new import SaliencyMasker, RandomMasker
+from xai.maskers.image_masker import SaliencyMasker, RandomMasker
 from classifiers.classifier_ResNet18.model import load_resnet18_classifier
 from classifiers.classifier_ResNet18.utils.dataloader_utils import Train_Test_DataLoader, load_rgb_mean_std
 from classifiers.classifier_ResNet18.utils.testing_utils import process_test_set
