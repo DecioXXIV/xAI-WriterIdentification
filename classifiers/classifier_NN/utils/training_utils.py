@@ -79,26 +79,16 @@ def plot_metric(metric, output_dir, test_id):
 def set_optimizer(optim_type, lr_, model, cp=None):
     if optim_type == 'adam':
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_,
-            betas = [0.9, 0.999],
-            weight_decay = 0.0001)
+            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.0001)
     elif optim_type == 'sgd':
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_,
-            momentum = 0.9,
-            nesterov = False,
-            weight_decay = 0.0001)
+            lr = lr_, momentum = 0.9, nesterov = False, weight_decay = 0.0001)
     elif optim_type == 'nesterov':
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_,
-            momentum = 0.9,
-            nesterov = True,
-            weight_decay = 0.0001)
+            lr = lr_, momentum = 0.9, nesterov = True, weight_decay = 0.0001)
     elif optim_type == 'adamw':
         optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_,
-            betas = [0.9, 0.999],
-            weight_decay = 0.0001)
+            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.0001)
     else:
         raise Exception('The selected optimization type is not available.')
     
