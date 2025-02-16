@@ -224,7 +224,7 @@ class LimeBaseExplainer:
                 
                 dict_plots['num_patches_to_remove'].append(n_patches_to_remove)
                 n_patches_to_remove += 1
-                
+        
             # Visualization
             fig, ax = plt.subplots(figsize=(10, 10))
             ax.set_xlabel('Number of patches removed [-]')

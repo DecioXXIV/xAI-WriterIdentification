@@ -65,11 +65,9 @@ def explain_instance(instance_name, label, explainer, crop_size, overlap, lime_i
     explainer.compute_superpixel_scores(img, mask, instance_name, label, lime_iters, crop_size, overlap)
     explainer.visualize_superpixel_scores_outcomes(img, mask, instance_name, reduction_method="mean", min_eval=2)
     
-    ### To Fix! ###
     if remove_patches == "True":
         crops_bbxs = get_crops_bbxs(img, crop_size, crop_size)
         explainer.compute_masked_patches_explanation(img, mask, instance_name, label, crops_bbxs, reduction_method="mean", min_eval=10, num_samples_for_baseline=10)
-    ### ####### ###
     
     xai_metadata["INSTANCES"][f"{instance_name}"] = dict()
     xai_metadata["INSTANCES"][f"{instance_name}"]["label"] = label

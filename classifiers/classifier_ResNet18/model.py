@@ -94,5 +94,6 @@ class ResNet18_Classifier(nn.Module):
 
     def forward(self, x):
         x = self.base_model(x)
+        if x.dim() == 1: x = x.unsqueeze(0)
         x = self.fc_layers(x)
         return x
