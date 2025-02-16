@@ -174,7 +174,7 @@ if __name__ == '__main__':
         for metric in ["loss", "accuracy"]: plot_metric(metric, OUTPUT_DIR, TEST_ID)
         
         cp_to_test = f"{OUTPUT_DIR}/checkpoints/Test_{TEST_ID}_MLC_val_best_model.pth"
-        model, _ = load_model(len(CLASSES_DATA), "frozen", MODEL_PATH, "test", TEST_ID, EXP_METADATA, DEVICE)
+        model, _ = load_model(MODEL_TYPE, len(CLASSES_DATA), "frozen", MODEL_PATH, "test", TEST_ID, EXP_METADATA, DEVICE)
 
         mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}")
         dl = Train_Test_DataLoader(directory=f"{EXP_DIR}/test", classes=list(CLASSES_DATA.keys()), batch_size=1, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='test', mean=mean_, std=std_, shuffle=True)
