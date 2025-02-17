@@ -2,6 +2,7 @@ import torch, itertools
 import numpy as np
 import pickle as pkl
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
 from tqdm import tqdm
 from sklearn.metrics import classification_report, confusion_matrix
 
@@ -28,7 +29,7 @@ def process_test_set(dl, device, model):
         
         with torch.no_grad():
             output = model(data.view(-1, c, h, w))
-            max_index = output.max(dim = 1)[1]
+            max_index = output.max(dim=1)[1]
             max_index = max_index.cpu().detach().numpy()
             max_index_over_crops = max_index.reshape(bs,ncrops)
             final_max_index = []
@@ -38,7 +39,7 @@ def process_test_set(dl, device, model):
             preds += list(final_max_index)
     
     return dataset, labels, preds, target_names, idx_to_c
-
+    
 def produce_confusion_matrix(labels, preds, target_names, idx_to_c, output_dir, test_id):
     label_class_names = np.array([idx_to_c[id_] for id_ in labels])
     pred_class_names = np.array([idx_to_c[id_] for id_ in preds])
