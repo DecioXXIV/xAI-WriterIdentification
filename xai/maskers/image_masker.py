@@ -198,9 +198,9 @@ class SaliencyMasker(ImageMasker):
             
             else:
                 for channel, mean_v in enumerate(self.training_mean):
-                    full_img_to_mask_tensor[channel, top:bottom, left:right] = mean_v
+                    full_img_to_mask_tensor[channel, top:bottom+1, left:right+1] = mean_v
                 
-                check_array[top:bottom, left:right] = 0
+                check_array[top:bottom+1, left:right+1] = 0
                 idx, masked_patches = idx + 1, masked_patches + 1
                 
                 patch = full_img.crop((left, top, right, bottom))
