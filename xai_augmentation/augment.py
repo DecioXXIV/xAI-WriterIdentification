@@ -1,4 +1,4 @@
-import os, torch, pickle
+import os, torch, pickle, json
 import numpy as np
 import pandas as pd
 import torchvision.transforms as T
@@ -70,29 +70,47 @@ def extract_class_mean_vectors(model, dl, device):
     
     return mean_vectors, c_to_idx, idx_to_c
 
-def compute_augmentation_rates(model, dl, device):
-    _, labels, preds, _, idx_to_c = process_test_set(dl, device, model)
-    labels, preds = np.array(labels), np.array(preds)
+def compute_augmentation_rates(model, dl, idx_to_c, device):
+    ITERS = 5
+    augmentations = {idx: np.zeros(ITERS) for idx in idx_to_c.keys()}
+
+    for it in range(0, ITERS):
+        _, labels, preds, _, idx_to_c = process_test_set(dl, device, model)
+        labels, preds = np.array(labels), np.array(preds)
     
-    augmentations = dict()
-    for idx in idx_to_c.keys():
-        num_instances = np.argwhere(labels == idx).shape[0]
-        num_correct = np.argwhere((labels == idx) & (labels == preds)).shape[0]
-        
-        aug_rate = 1 - (num_correct / num_instances)
-        augmentations[idx] = int(aug_rate * 16 * num_instances)
-            
+        for idx in idx_to_c.keys():
+            num_instances = np.sum(labels == idx)
+            num_correct = np.sum((labels == idx) & (labels == preds))
+            aug_rate = 1 - (num_correct / num_instances)
+            augmentations[idx][it] = int(aug_rate * 16 * num_instances)
+
+    for idx in idx_to_c.keys(): augmentations[idx] = int(np.max(augmentations[idx]))
+
     return augmentations
 
-def produce_augmented_crops(root_dir, test_id, xai_exp_dir, c, c_to_idx, mean_vector, n_augmentations, mean_, std_, model, device):
+def produce_augmented_crops(root_dir, results, c, mean_):
+    for i, row in enumerate(results):
+        instance_name = row["instance"]
+        img = Image.open(f"{root_dir}/train_instances/{c}/{instance_name}")
+
+        crop_coordinates = row["crop_coordinates"]
+        pad_coordinates = row["pad_coordinates"]
+
+        crop = img.crop(crop_coordinates)
+        mean_int = tuple(int(m * 255) for m in mean_)
+        crop = T.Pad(pad_coordinates, fill=mean_int)(crop)
+
+        crop.save(f"{root_dir}/crops_for_augmentation/{c}/{instance_name[:-4]}_crop{i}.jpg")
+
+def extract_augmented_crops(root_dir, test_id, xai_exp_dir, c, c_to_idx, mean_vector, n_augmentations, mean_, std_, model, device):
     os.makedirs(f"{root_dir}/crops_for_augmentation/{c}", exist_ok=True)
     instance_names = os.listdir(f"{root_dir}/train_instances/{c}")
     mask = Image.open(f"{XAI_ROOT}/def_mask_{B_WIDTH}x{B_HEIGHT}.png")
     mask_array = np.array(mask)
     label = c_to_idx[str(c)]
     
-    df = pd.DataFrame(columns=["instance", "utility", "patch_coordinates", "crop_coordinates", "pad_coordinates"])
-    
+    results = []
+
     for name in tqdm(instance_names):
         img = Image.open(f"{root_dir}/train_instances/{c}/{name}")
         inst_name = name[:-4]
@@ -113,7 +131,6 @@ def produce_augmented_crops(root_dir, test_id, xai_exp_dir, c, c_to_idx, mean_ve
                         continue
                     
                     bottom_b_patch, right_b_patch = bottom_b_patch + 1, right_b_patch + 1
-                    
                     left_b_crop, top_b_crop, right_b_crop, bottom_b_crop = 0, 0, 0, 0
                     left_b_crop_to_pad, top_b_crop_to_pad, right_b_crop_to_pad, bottom_b_crop_to_pad = 0, 0, 0, 0
                     
@@ -153,14 +170,20 @@ def produce_augmented_crops(root_dir, test_id, xai_exp_dir, c, c_to_idx, mean_ve
                     cosine = np.dot(vis_f, mean_vector) / (np.linalg.norm(vis_f) * np.linalg.norm(mean_vector))
                     utility = np.exp(1-probs[label]) * cosine
                     
-                    df.loc[len(df)] = [name, utility,
-                                       (left_b_patch, top_b_patch, right_b_patch, bottom_b_patch),
-                                       (left_b_crop, top_b_crop, right_b_crop, bottom_b_crop),
-                                       (left_b_crop_to_pad, top_b_crop_to_pad, right_b_crop_to_pad, bottom_b_crop_to_pad)]
-                    
-    df = df.sort_values(by="utility", ascending=False)
-    df = df.head(n_augmentations)
-    df.to_csv(f"{root_dir}/crops_for_augmentation/{c}_crops_for_augmentations.csv", index=False, header=0)
+                    results.append({
+                        "instance": name,
+                        "utility": float(utility),
+                        "patch_coordinates": tuple(map(int, (left_b_patch, top_b_patch, right_b_patch, bottom_b_patch))),
+                        "crop_coordinates": tuple(map(int, (left_b_crop, top_b_crop, right_b_crop, bottom_b_crop))),
+                        "pad_coordinates": tuple(map(int, (left_b_crop_to_pad, top_b_crop_to_pad, right_b_crop_to_pad, bottom_b_crop_to_pad)))
+                    })
+    
+    results = sorted(results, key=lambda x: x['utility'], reverse=True)
+    with open(f"{root_dir}/crops_for_augmentation/{c}_crops_for_augmentations.json", "w") as f:
+        json.dump(results, f, indent=4)
+    
+    results = results[:n_augmentations]
+    produce_augmented_crops(root_dir, results, c, mean_)
                         
 ### #### ###
 ### MAIN ###
@@ -191,7 +214,7 @@ if __name__ == "__main__":
     mean_class_vectors, c_to_idx, idx_to_c = extract_class_mean_vectors(model, dl, DEVICE)
     
     print("Computing augmentation rates...")
-    augmentations = compute_augmentation_rates(model, dl, DEVICE)
+    augmentations = compute_augmentation_rates(model, dl, idx_to_c, DEVICE)
     
     os.makedirs(f"{root_dir}/crops_for_augmentation", exist_ok=True)
     
@@ -199,7 +222,7 @@ if __name__ == "__main__":
     B_WIDTH, B_HEIGHT = EXP_METADATA[f"{XAI_ALGORITHM}_base_METADATA"]["BLOCK_DIM"]["WIDTH"], EXP_METADATA[f"{XAI_ALGORITHM}_base_METADATA"]["BLOCK_DIM"]["HEIGHT"]
     XAI_EXP_DIR = f"{XAI_ROOT}/explanations/patches_{B_WIDTH}x{B_HEIGHT}_removal/{XAI_EXP_DIR_NAME}"
     for c in CLASSES:
-        print(f"Producing Augmentation crops for class: {c}")
+        print(f"Extracting Augmentation crops for class: {c}")
         mean_class_vector = mean_class_vectors[c_to_idx[str(c)]]
         n_augmentations = augmentations[c_to_idx[str(c)]]
-        produce_augmented_crops(root_dir, TEST_ID, XAI_EXP_DIR, c, c_to_idx, mean_class_vector, n_augmentations, mean_, std_, model, DEVICE)
+        extract_augmented_crops(root_dir, TEST_ID, XAI_EXP_DIR, c, c_to_idx, mean_class_vector, n_augmentations, mean_, std_, model, DEVICE)
