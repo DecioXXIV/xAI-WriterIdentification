@@ -1,13 +1,15 @@
-import os, torch
+import os, torch, multiprocessing
 from datetime import datetime
 from argparse import ArgumentParser
+from PIL import Image
 
 from utils import load_metadata, save_metadata, get_train_instance_patterns, get_test_instance_patterns
 
+from classifiers.utils.dataloader_utils import Train_DataLoader, Test_DataLoader, load_rgb_mean_std, all_crops, n_random_crops
+from classifiers.utils.training_utils import Trainer, plot_metric
+from classifiers.utils.testing_utils import produce_classification_reports
+
 from .model import load_resnet18_classifier
-from .utils.dataloader_utils import Train_Test_DataLoader, load_rgb_mean_std
-from .utils.training_utils import Trainer, plot_metric
-from .utils.testing_utils import produce_classification_reports
 
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
@@ -33,31 +35,56 @@ def get_args():
 def create_directories(root_folder, classes):
     os.makedirs(root_folder, exist_ok=True)
     
-    for phase in ["train", "test"]:
+    for phase in ["train", "val", "test"]:
         for c in classes:
             os.makedirs(f"{root_folder}/{phase}/{c}", exist_ok=True)
     
     os.makedirs(f"{root_folder}/output", exist_ok=True)
 
-def split_and_copy_files(dataset, source_dir, class_name, train_replicas, random_seed):
+def process_train_file(args):
+    file, source_dir, class_name, train_replicas, crop_size, mult_factor = args
+    
+    """Elabora un singolo file di training."""
+    img = Image.open(os.path.join(source_dir, file))
+    crops = all_crops(img, (crop_size, crop_size), mult_factor)
+    
+    for i in range(train_replicas):
+        for n, crop in enumerate(crops): crop.save(f"{EXP_DIR}/train/{class_name}/{file[:-4]}_cp{i+1}_crop{n+1}{file[-4:]}")
+
+def process_test_file(args):
+    file, source_dir, class_name, crop_size, test_n_crops, random_seed = args
+    
+    """Elabora un singolo file di test, generando i crop per validation e test set."""
+    img = Image.open(os.path.join(source_dir, file))
+    
+    val_crops = n_random_crops(img, int(test_n_crops/4), (crop_size, crop_size), random_seed)
+    for n, crop in enumerate(val_crops): crop.save(f"{EXP_DIR}/val/{class_name}/{file[:-4]}_crop{n+1}{file[-4:]}")
+    
+    test_crops = n_random_crops(img, test_n_crops, (crop_size, crop_size), random_seed)
+    for n, crop in enumerate(test_crops): crop.save(f"{EXP_DIR}/test/{class_name}/{file[:-4]}_crop{n+1}{file[-4:]}")
+
+def extract_crops_parallel(dataset, source_dir, class_name, train_replicas, crop_size, mult_factor, test_n_crops, random_seed):
+    """Parallelizza l'estrazione dei crop per training e test."""
     files = os.listdir(source_dir)
-    train, test = None, None
     
     train_instance_patterns = get_train_instance_patterns()
     test_instance_patterns = get_test_instance_patterns()
     
     train = [f for f in files if train_instance_patterns[dataset](f)]
     test = [f for f in files if test_instance_patterns[dataset](f)]
-            
-    for file in train:
-        for i in range(0, train_replicas):
-            os.system(f"cp {source_dir}/{file} {EXP_DIR}/train/{class_name}/{file[:-4]}_cp{i+1}{file[-4:]}")
-
-    for file in test:
-        os.system(f"cp {source_dir}/{file} {EXP_DIR}/test/{class_name}/{file[:-4]}{file[-4:]}")
-        
-    class_n_train_instances = len(os.listdir(f"{EXP_DIR}/train/{class_name}"))
-    print(f"Class {c} -> Train Instances: {class_n_train_instances}")
+    
+    num_workers = max(1, multiprocessing.cpu_count() - 1)  # Usa tutti i core tranne 1
+    
+    # Parallelizza il processamento dei file di train
+    with multiprocessing.Pool(num_workers) as pool:
+        pool.map(process_train_file, [(file, source_dir, class_name, train_replicas, crop_size, mult_factor) for file in train])
+    
+    # Parallelizza il processamento dei file di test
+    with multiprocessing.Pool(num_workers) as pool:
+        pool.map(process_test_file, [(file, source_dir, class_name, crop_size, test_n_crops, random_seed) for file in test])
+    
+    class_n_train_crops = len(os.listdir(f"{EXP_DIR}/train/{class_name}"))
+    print(f"Class {c} -> Train Instances ({crop_size}x{crop_size}-sized Crops): {class_n_train_crops}")
 
 def load_model(model_type, num_classes, mode, cp_base, phase, test_id, exp_metadata, device):
     model, last_cp = None, None
@@ -88,6 +115,7 @@ if __name__ == '__main__':
     LR = args.lr
     TRAIN_REPLICAS = args.train_replicas
     TRAIN_DL_MF = args.train_dl_mf
+    TEST_N_CROPS = 250
     RANDOM_SEED = args.random_seed
     EPOCHS = args.epochs
     FT_MODE = args.ft_mode
@@ -114,6 +142,7 @@ if __name__ == '__main__':
             "learning_rate": LR,
             "train_replicas": TRAIN_REPLICAS,
             "train_dl_mf": TRAIN_DL_MF,
+            # "test_n_crops": TEST_N_CROPS,
             "random_seed": RANDOM_SEED,
             "total_epochs": EPOCHS
         }
@@ -129,7 +158,8 @@ if __name__ == '__main__':
                 if c_type == "base": class_source = f"{SOURCE_DATA_DIR}/{c}"
                 else: class_source = f"{SOURCE_DATA_DIR}/{c}-{BASE_ID}_NN_{c_type}"
         
-                split_and_copy_files(DATASET, class_source, c, TRAIN_REPLICAS, RANDOM_SEED)
+                # split_and_copy_files(DATASET, class_source, c, TRAIN_REPLICAS, RANDOM_SEED)
+                extract_crops_parallel(DATASET, class_source, c, TRAIN_REPLICAS, CROP_SIZE, TRAIN_DL_MF, TEST_N_CROPS, RANDOM_SEED)
     
             EXP_METADATA["FT_DATASET_PREP_TIMESTAMP"] = str(datetime.now())
             save_metadata(EXP_METADATA, EXP_METADATA_PATH)
@@ -144,8 +174,8 @@ if __name__ == '__main__':
         os.makedirs(f"{OUTPUT_DIR}/checkpoints", exist_ok=True)
         torch.backends.cudnn.benchmark = True
                 
-        train_ds = Train_Test_DataLoader(directory=f"{EXP_DIR}/train", classes=list(CLASSES_DATA.keys()), batch_size=8, img_crop_size=CROP_SIZE, mult_factor=TRAIN_DL_MF, weighted_sampling=True, phase='train', mean=mean_, std=std_, shuffle=True)
-        val_ds = Train_Test_DataLoader(directory=f"{EXP_DIR}/test", classes=list(CLASSES_DATA.keys()), batch_size=8, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='val', mean=mean_, std=std_, shuffle=False)
+        train_ds = Train_DataLoader(directory=f"{EXP_DIR}/train", classes=list(CLASSES_DATA.keys()), batch_size=96, img_crop_size=CROP_SIZE, mult_factor=TRAIN_DL_MF, weighted_sampling=True, mean=mean_, std=std_, shuffle=True)
+        val_ds = Test_DataLoader(directory=f"{EXP_DIR}/val", classes=list(CLASSES_DATA.keys()), batch_size=96, img_crop_size=CROP_SIZE, mean=mean_, std=std_)
         tds, t_dl = train_ds.load_data()
         vds, v_dl = val_ds.load_data()
 
@@ -177,13 +207,14 @@ if __name__ == '__main__':
         model, _ = load_model(MODEL_TYPE, len(CLASSES_DATA), "frozen", MODEL_PATH, "test", TEST_ID, EXP_METADATA, DEVICE)
 
         mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}")
-        dl = Train_Test_DataLoader(directory=f"{EXP_DIR}/test", classes=list(CLASSES_DATA.keys()), batch_size=1, img_crop_size=CROP_SIZE, weighted_sampling=False, phase='test', mean=mean_, std=std_, shuffle=True)
+        dl = Test_DataLoader(directory=f"{EXP_DIR}/test", classes=list(CLASSES_DATA.keys()), batch_size=TEST_N_CROPS, img_crop_size=CROP_SIZE, mean=mean_, std=std_)
         produce_classification_reports(dl, DEVICE, model, OUTPUT_DIR, TEST_ID)
         print("...Testing reports are now available!\n")
     
         print("PHASE 4 -> DATA & METADATA HANDLING...")
         os.system(f"rm -r {OUTPUT_DIR}/checkpoints/Test_{TEST_ID}_MLC_last_checkpoint.pth")
         os.system(f"rm -r {EXP_DIR}/train")
+        os.system(f"rm -r {EXP_DIR}/val")
         os.system(f"rm -r {EXP_DIR}/test")
         EXP_METADATA["MODEL_TESTING_TIMESTAMP"] = str(datetime.now())
         save_metadata(EXP_METADATA, EXP_METADATA_PATH)
