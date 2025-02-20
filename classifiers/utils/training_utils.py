@@ -94,11 +94,30 @@ def set_optimizer(optim_type, lr_, model, cp=None):
             momentum = 0.9,
             nesterov = True,
             weight_decay = 0.0001)
-    elif optim_type == 'adamw':
+    elif optim_type == 'adamw': # Net Weights are decayed of a factor equal to "lr * weight_decay"
         optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
             lr = lr_,
             betas = [0.9, 0.999],
             weight_decay = 0.0001)
+    
+    ### TESTS ###
+    elif optim_type == 'adamw-1%':
+        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+            lr = lr_,
+            betas = [0.9, 0.999],
+            weight_decay = 0.01)
+    
+    elif optim_type == 'adamw-2.5%':
+        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+            lr = lr_,
+            betas = [0.9, 0.999],
+            weight_decay = 0.025) 
+    
+    elif optim_type == 'adamw-5%':
+        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+            lr = lr_,
+            betas = [0.9, 0.999],
+            weight_decay = 0.05) 
     else:
         raise Exception('The selected optimization type is not available.')
     
@@ -134,33 +153,27 @@ class Trainer():
 
     def train_one_epoch(self, optimizer, criterion):
         self.model.train()
-        epoch_loss, epoch_acc = 0.0, 0.0
+        epoch_loss, epoch_acc, total_samples = 0.0, 0.0, 0
         
         for data, target in tqdm(self.t_set, desc="Training"):
-            bs, ncrops, c, h, w = data.size()
-            target_expanded = target.repeat_interleave(ncrops)
-            
-            data = data.view(-1, c, h, w).to(self.device)
-            target_expanded = target_expanded.to(self.device)
-            
-            # Shuffle data
-            perm = torch.randperm(bs * ncrops)
-            data, target_expanded = data[perm], target_expanded[perm]
+            bs = data.size()[0]
+            data, target = data.to(self.device), target.to(self.device)
             
             # Training Step
             optimizer.zero_grad()
             output = self.model(data)
-            loss = criterion(output, target_expanded)
-            correct, _ = self.compute_minibatch_accuracy(output, target_expanded)
+            loss = criterion(output, target)
+            correct, _ = self.compute_minibatch_accuracy(output, target)
             
             epoch_loss += loss.item() * bs
             epoch_acc += correct
+            total_samples += bs
             
             loss.backward()
             optimizer.step()
         
-        epoch_final_loss = epoch_loss / len(self.t_set.dataset)
-        epoch_final_acc = epoch_acc / (len(self.t_set.dataset) * ncrops)
+        epoch_final_loss = epoch_loss / total_samples
+        epoch_final_acc = epoch_acc / total_samples
         
         print(f"Train_Loss: {epoch_final_loss} - Train_Accuracy: {epoch_final_acc}\n")
         
@@ -168,25 +181,23 @@ class Trainer():
 
     def validate_one_epoch(self, criterion):
         self.model.eval()
-        val_loss, val_acc = 0.0, 0.0
+        val_loss, val_acc, total_samples = 0.0, 0.0, 0
         
         with torch.no_grad():
             for data, target in tqdm(self.v_set, desc="Validation"):
-                bs, ncrops, c, h, w = data.size()
-                target_expanded = target.repeat_interleave(ncrops)
-                
-                data = data.view(-1, c, h, w).to(self.device)
-                target_expanded = target_expanded.to(self.device)
+                bs = data.size()[0]
+                data, target = data.to(self.device), target.to(self.device)
                 
                 output = self.model(data)
-                loss = criterion(output, target_expanded)
-                correct, _ = self.compute_minibatch_accuracy(output, target_expanded)
+                loss = criterion(output, target)
+                correct, _ = self.compute_minibatch_accuracy(output, target)
                 
                 val_loss += loss.item() * bs
                 val_acc += correct
+                total_samples += bs
         
-        epoch_final_loss = val_loss / len(self.v_set.dataset)
-        epoch_final_acc = val_acc / (len(self.v_set.dataset) * ncrops)
+        epoch_final_loss = val_loss / total_samples
+        epoch_final_acc = val_acc / total_samples
         
         print(f"Val_Loss: {epoch_final_loss} - Val_Accuracy: {epoch_final_acc}\n")
         

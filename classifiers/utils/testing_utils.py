@@ -21,23 +21,33 @@ def process_test_set(dl, device, model):
     idx_to_c = {c_to_idx[k]: k for k in list(c_to_idx.keys())}
     
     for data, target in tqdm(set_):
-        data = data.to(device)
-        labels += list(target.numpy())
-        target = target.to(device)
+        if data.dim() == 4:
+            labels.append(target.max().item())
+            data, target = data.to(device), target.to(device)
+            bs = data.size(0)
+            
+            with torch.no_grad():
+                output = model(data)
+                indices = output.max(dim=1)[1].cpu().numpy()
+                max_index = np.argmax(np.bincount(indices))
+                preds.append(max_index)
         
-        bs, ncrops, c, h, w = data.size()
-        
-        with torch.no_grad():
-            output = model(data.view(-1, c, h, w))
-            max_index = output.max(dim=1)[1]
-            max_index = max_index.cpu().detach().numpy()
-            max_index_over_crops = max_index.reshape(bs,ncrops)
-            final_max_index = []
-            for i in range(bs):
-                final_max_index.append(np.argmax(np.bincount(max_index_over_crops[i,:])))
+        if data.dim() == 5:
+            labels.extend(list(target.numpy()))
+            data, target = data.to(device), target.to(device)
+            bs, ncrops, c, h, w = data.size()
+            
+            with torch.no_grad():
+                output = model(data.view(-1, c, h, w))
+                indices = output.max(dim=1)[1].cpu().numpy()
+                indices_over_crops = indices.reshape(bs, ncrops)
+                max_indices = list()
                 
-            preds += list(final_max_index)
-    
+                for i in range(0, bs):
+                    max_indices.append(np.argmax(np.bincount(indices_over_crops[i, :])))
+                
+                preds.extend(max_indices)
+        
     return dataset, labels, preds, target_names, idx_to_c
     
 def produce_confusion_matrix(labels, preds, target_names, idx_to_c, output_dir, test_id):
