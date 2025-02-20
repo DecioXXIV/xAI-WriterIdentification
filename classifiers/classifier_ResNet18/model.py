@@ -47,7 +47,8 @@ def load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_met
         if "EPOCHS_COMPLETED" in exp_metadata:
             epochs = exp_metadata["FINE_TUNING_HP"]["total_epochs"]
             epochs_completed = exp_metadata["EPOCHS_COMPLETED"]
-            print(f"{epochs_completed} epochs have already been completed: the Fine-Tuning process will be ended with the remaining {epochs} epochs")
+            epochs_to_do = epochs - epochs_completed
+            print(f"{epochs_completed} epochs have already been completed: the Fine-Tuning process will be ended with the remaining {epochs_to_do} epochs")
             last_cp_path = f"{output_dir}/checkpoints/Test_{test_id}_MLC_last_checkpoint.pth"
             last_cp = torch.load(last_cp_path)
             model.load_state_dict(last_cp['model_state_dict'])

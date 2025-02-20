@@ -18,7 +18,7 @@ def get_args():
     parser.add_argument("-test_id", type=str, required=True, help="ID for the new test")
     return parser.parse_args()
     
-def process_images(class_name, class_type, dataset, test_id, model_type, final_width, final_height):
+def split_full_instances(class_name, class_type, dataset, test_id, model_type, final_width, final_height):
     """
     Given a class and its 'class_type', processes and prepares its instances for the fine-tuning step.
     (final_width, final_height)-sized crops are extracted from each instance.
@@ -154,7 +154,7 @@ if __name__ == '__main__':
     
     # Process and extract sub-images for each class
     for c, c_type in CLASSES_DATA.items():
-        process_images(c, c_type, DATASET, BASE_ID, MODEL_TYPE, FINAL_WIDTH, FINAL_HEIGHT)
+        split_full_instances(c, c_type, DATASET, BASE_ID, MODEL_TYPE, FINAL_WIDTH, FINAL_HEIGHT)
     
     EXP_METADATA["DATA_PREP_TIMESTAMP"] = str(datetime.now())
     save_metadata(EXP_METADATA, EXP_METADATA_PATH)
