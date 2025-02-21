@@ -225,7 +225,7 @@ class Train_DataLoader(Base_DataLoader):
         return transforms
     
     def load_data(self):
-        num_workers = num_workers = max(1, os.cpu_count() - 1)
+        num_workers = num_workers = max(1, int(os.cpu_count()/2))
         dataset = self.generate_dataset()
         weights = self.make_weights_for_balanced_classes(dataset.imgs, len(dataset.classes))
         weights = torch.DoubleTensor(weights)
@@ -247,7 +247,7 @@ class Test_DataLoader(Base_DataLoader):
         return transforms
     
     def load_data(self):
-        num_workers = max(1, os.cpu_count() - 1)
+        num_workers = num_workers = max(1, int(os.cpu_count()/2))
         dataset = self.generate_dataset()
         loader = DataLoader(dataset, batch_size=self.batch_size, num_workers=num_workers, shuffle=False)
         
