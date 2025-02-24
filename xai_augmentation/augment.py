@@ -10,8 +10,8 @@ from tqdm import tqdm
 from utils import load_metadata, get_train_instance_patterns
 
 from classifiers.classifier_ResNet18.model import load_resnet18_classifier
-from classifiers.classifier_ResNet18.utils.dataloader_utils import load_rgb_mean_std, Train_Test_DataLoader
-from classifiers.classifier_ResNet18.utils.testing_utils import process_test_set
+from classifiers.utils.dataloader_utils import Faithfulness_Test_DataLoader, load_rgb_mean_std
+from classifiers.utils.testing_utils import process_test_set
 
 from xai.utils.explanations_utils import reduce_scores
 
@@ -49,7 +49,6 @@ def retrieve_training_instances(root_dir, dataset, classes):
 
 def extract_class_mean_vectors(model, dl, device):
     dataset, set_ = dl.load_data()
-    target_names = list(dataset.class_to_idx.keys())
     c_to_idx = dataset.class_to_idx
     idx_to_c = {c_to_idx[k]: k for k in list(c_to_idx.keys())}
     
@@ -102,7 +101,7 @@ def produce_augmented_crops(root_dir, results, c, mean_):
 
         crop.save(f"{root_dir}/crops_for_augmentation/{c}/{instance_name[:-4]}_crop{i}.jpg")
 
-def extract_augmented_crops(root_dir, test_id, xai_exp_dir, c, c_to_idx, mean_vector, n_augmentations, mean_, std_, model, device):
+def extract_augmented_crops(root_dir, xai_exp_dir, c, c_to_idx, mean_vector, n_augmentations, mean_, std_, model, device):
     os.makedirs(f"{root_dir}/crops_for_augmentation/{c}", exist_ok=True)
     instance_names = os.listdir(f"{root_dir}/train_instances/{c}")
     mask = Image.open(f"{XAI_ROOT}/def_mask_{B_WIDTH}x{B_HEIGHT}.png")
@@ -208,7 +207,7 @@ if __name__ == "__main__":
     retrieve_training_instances(root_dir, DATASET, CLASSES)
     EXP_DIR = f"{CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}"
     mean_, std_ = load_rgb_mean_std(EXP_DIR)
-    dl = Train_Test_DataLoader(directory=f"{root_dir}/train_instances", classes=CLASSES, batch_size=1, img_crop_size=380, weighted_sampling=False, phase="test", mean=mean_, std=std_, shuffle=False)
+    dl = Faithfulness_Test_DataLoader(directory=f"{root_dir}/train_instances", classes=CLASSES, batch_size=1, img_crop_size=380, mean=mean_, std=std_)
     
     print("Extracting class mean vectors...")
     mean_class_vectors, c_to_idx, idx_to_c = extract_class_mean_vectors(model, dl, DEVICE)
@@ -225,4 +224,4 @@ if __name__ == "__main__":
         print(f"Extracting Augmentation crops for class: {c}")
         mean_class_vector = mean_class_vectors[c_to_idx[str(c)]]
         n_augmentations = augmentations[c_to_idx[str(c)]]
-        extract_augmented_crops(root_dir, TEST_ID, XAI_EXP_DIR, c, c_to_idx, mean_class_vector, n_augmentations, mean_, std_, model, DEVICE)
+        extract_augmented_crops(root_dir, XAI_EXP_DIR, c, c_to_idx, mean_class_vector, n_augmentations, mean_, std_, model, DEVICE)

@@ -7,8 +7,8 @@ from utils import load_metadata, get_test_instance_patterns
 
 from xai.maskers.image_masker import SaliencyMasker, RandomMasker
 from classifiers.classifier_ResNet18.model import load_resnet18_classifier
-from classifiers.classifier_ResNet18.utils.dataloader_utils import Train_Test_DataLoader, load_rgb_mean_std
-from classifiers.classifier_ResNet18.utils.testing_utils import process_test_set
+from classifiers.utils.dataloader_utils import Faithfulness_Test_DataLoader, load_rgb_mean_std
+from classifiers.utils.testing_utils import process_test_set
 
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
@@ -87,7 +87,7 @@ def test_model(model_type, test_id, classes, xai_algorithm, mask_rate, mask_mode
     test_set_dir = f"{EVAL_ROOT}/faithfulness/{test_id}/test_set_masked_{mask_mode}_{mask_rate}_{xai_algorithm}"
     mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}")
     
-    dl = Train_Test_DataLoader(directory=test_set_dir, classes=classes, batch_size=1, img_crop_size=380, weighted_sampling=False, phase='test', mean=mean_, std=std_, shuffle=True)
+    dl = Faithfulness_Test_DataLoader(directory=test_set_dir, classes=classes, batch_size=1, img_crop_size=380, mean=mean_, std=std_)
     
     _, labels, preds, _, idx_to_c = process_test_set(dl, DEVICE, model)
     label_class_names = [idx_to_c[id_] for id_ in labels]
