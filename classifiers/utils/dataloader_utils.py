@@ -275,7 +275,7 @@ class Confidence_Test_DataLoader(Test_DataLoader):
         if self.mode == "scan": return pair_test_scan_transforms
         if self.mode == "random": return pair_test_random_transforms
         
-class Faithulness_Test_DataLoader(Test_DataLoader):
+class Faithfulness_Test_DataLoader(Test_DataLoader):
     def __init__(self, directory, classes, batch_size, img_crop_size, n_pair_test_crops=250, random_seed=None, mean=[0, 0, 0], std=[1, 1, 1]):
         super().__init__(directory, classes, batch_size, img_crop_size, mean, std)
         self.n_pair_test_crops = n_pair_test_crops
