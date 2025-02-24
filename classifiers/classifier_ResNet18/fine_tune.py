@@ -14,6 +14,7 @@ from .model import load_resnet18_classifier
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
 CLASSIFIERS_ROOT = "./classifiers"
+XAI_AUG_ROOT = "./xai_augmentation"
 
 ### ################# ###
 ### SUPPORT FUNCTIONS ###
@@ -44,7 +45,6 @@ def create_directories(root_folder, classes):
 def process_train_file(args):
     file, source_dir, class_name, train_replicas, crop_size, mult_factor = args
     
-    """Elabora un singolo file di training."""
     img = Image.open(os.path.join(source_dir, file))
     crops = all_crops(img, (crop_size, crop_size), mult_factor)
     
@@ -54,7 +54,6 @@ def process_train_file(args):
 def process_test_file(args):
     file, source_dir, class_name, crop_size, test_n_crops, random_seed = args
     
-    """Elabora un singolo file di test, generando i crop per validation e test set."""
     img = Image.open(os.path.join(source_dir, file))
     
     val_crops = n_random_crops(img, int(test_n_crops/4), (crop_size, crop_size), random_seed)
@@ -64,7 +63,6 @@ def process_test_file(args):
     for n, crop in enumerate(test_crops): crop.save(f"{EXP_DIR}/test/{class_name}/{file[:-4]}_crop{n+1}{file[-4:]}")
 
 def extract_crops_parallel(dataset, source_dir, class_name, train_replicas, crop_size, mult_factor, test_n_crops, random_seed):
-    """Parallelizza l'estrazione dei crop per training e test."""
     files = os.listdir(source_dir)
     
     train_instance_patterns = get_train_instance_patterns()
@@ -73,19 +71,24 @@ def extract_crops_parallel(dataset, source_dir, class_name, train_replicas, crop
     train = [f for f in files if train_instance_patterns[dataset](f)]
     test = [f for f in files if test_instance_patterns[dataset](f)]
     
-    num_workers = max(1, multiprocessing.cpu_count() - 1)  # Usa tutti i core tranne 1
+    num_workers = max(1, multiprocessing.cpu_count() - 1)
     
-    # Parallelizza il processamento dei file di train
     with multiprocessing.Pool(num_workers) as pool:
         pool.map(process_train_file, [(file, source_dir, class_name, train_replicas, crop_size, mult_factor) for file in train])
     
-    # Parallelizza il processamento dei file di test
     with multiprocessing.Pool(num_workers) as pool:
         pool.map(process_test_file, [(file, source_dir, class_name, crop_size, test_n_crops, random_seed) for file in test])
     
     class_n_train_crops = len(os.listdir(f"{EXP_DIR}/train/{class_name}"))
     print(f"Class {c} -> Train Instances ({crop_size}x{crop_size}-sized Crops): {class_n_train_crops}")
 
+def retrieve_augmentation_crops(test_id, base_id, c):
+    augmented_crops = os.listdir(f"{XAI_AUG_ROOT}/{base_id}/crops_for_augmentation/{c}")
+    for crop in augmented_crops:
+        src = f"{XAI_AUG_ROOT}/{base_id}/crops_for_augmentation/{c}/{crop}"
+        dst = f"{CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{test_id}/train/{c}/{crop}"
+        os.system(f"cp {src} {dst}")
+    
 def load_model(model_type, num_classes, mode, cp_base, phase, test_id, exp_metadata, device):
     model, last_cp = None, None
     if model_type == "ResNet18":
@@ -140,9 +143,9 @@ if __name__ == '__main__':
         EXP_METADATA["FINE_TUNING_HP"] = {
             "optimizer": OPT,
             "learning_rate": LR,
+            "crop_size": CROP_SIZE,
             "train_replicas": TRAIN_REPLICAS,
             "train_dl_mf": TRAIN_DL_MF,
-            # "test_n_crops": TEST_N_CROPS,
             "random_seed": RANDOM_SEED,
             "total_epochs": EPOCHS
         }
@@ -158,9 +161,12 @@ if __name__ == '__main__':
                 if c_type == "base": class_source = f"{SOURCE_DATA_DIR}/{c}"
                 else: class_source = f"{SOURCE_DATA_DIR}/{c}-{BASE_ID}_NN_{c_type}"
         
-                # split_and_copy_files(DATASET, class_source, c, TRAIN_REPLICAS, RANDOM_SEED)
                 extract_crops_parallel(DATASET, class_source, c, TRAIN_REPLICAS, CROP_SIZE, TRAIN_DL_MF, TEST_N_CROPS, RANDOM_SEED)
-    
+                
+                if "augmented" in TEST_ID:
+                    BASE_ID, _ = TEST_ID.split(':')
+                    retrieve_augmentation_crops(TEST_ID, BASE_ID, c)
+                    
             EXP_METADATA["FT_DATASET_PREP_TIMESTAMP"] = str(datetime.now())
             save_metadata(EXP_METADATA, EXP_METADATA_PATH)
             print("...Dataset Created!\n")
