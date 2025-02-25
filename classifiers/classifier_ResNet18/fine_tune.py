@@ -43,26 +43,26 @@ def create_directories(root_folder, classes):
     os.makedirs(f"{root_folder}/output", exist_ok=True)
 
 def process_train_file(args):
-    file, source_dir, class_name, train_replicas, crop_size, mult_factor = args
+    file, exp_dir, source_dir, class_name, train_replicas, crop_size, mult_factor = args
     
     img = Image.open(os.path.join(source_dir, file))
     crops = all_crops(img, (crop_size, crop_size), mult_factor)
     
     for i in range(train_replicas):
-        for n, crop in enumerate(crops): crop.save(f"{EXP_DIR}/train/{class_name}/{file[:-4]}_cp{i+1}_crop{n+1}{file[-4:]}")
+        for n, crop in enumerate(crops): crop.save(f"{exp_dir}/train/{class_name}/{file[:-4]}_cp{i+1}_crop{n+1}{file[-4:]}")
 
 def process_test_file(args):
-    file, source_dir, class_name, crop_size, test_n_crops, random_seed = args
+    file, exp_dir, source_dir, class_name, crop_size, test_n_crops, random_seed = args
     
     img = Image.open(os.path.join(source_dir, file))
     
     val_crops = n_random_crops(img, int(test_n_crops/4), (crop_size, crop_size), random_seed)
-    for n, crop in enumerate(val_crops): crop.save(f"{EXP_DIR}/val/{class_name}/{file[:-4]}_crop{n+1}{file[-4:]}")
+    for n, crop in enumerate(val_crops): crop.save(f"{exp_dir}/val/{class_name}/{file[:-4]}_crop{n+1}{file[-4:]}")
     
     test_crops = n_random_crops(img, test_n_crops, (crop_size, crop_size), random_seed)
-    for n, crop in enumerate(test_crops): crop.save(f"{EXP_DIR}/test/{class_name}/{file[:-4]}_crop{n+1}{file[-4:]}")
+    for n, crop in enumerate(test_crops): crop.save(f"{exp_dir}/test/{class_name}/{file[:-4]}_crop{n+1}{file[-4:]}")
 
-def extract_crops_parallel(dataset, source_dir, class_name, train_replicas, crop_size, mult_factor, test_n_crops, random_seed):
+def extract_crops_parallel(dataset, exp_dir, source_dir, class_name, train_replicas, crop_size, mult_factor, test_n_crops, random_seed):
     files = os.listdir(source_dir)
     
     train_instance_patterns = get_train_instance_patterns()
@@ -74,13 +74,10 @@ def extract_crops_parallel(dataset, source_dir, class_name, train_replicas, crop
     num_workers = max(1, multiprocessing.cpu_count() - 1)
     
     with multiprocessing.Pool(num_workers) as pool:
-        pool.map(process_train_file, [(file, source_dir, class_name, train_replicas, crop_size, mult_factor) for file in train])
+        pool.map(process_train_file, [(file, exp_dir, source_dir, class_name, train_replicas, crop_size, mult_factor) for file in train])
     
     with multiprocessing.Pool(num_workers) as pool:
-        pool.map(process_test_file, [(file, source_dir, class_name, crop_size, test_n_crops, random_seed) for file in test])
-    
-    class_n_train_crops = len(os.listdir(f"{EXP_DIR}/train/{class_name}"))
-    print(f"Class {c} -> Train Instances ({crop_size}x{crop_size}-sized Crops): {class_n_train_crops}")
+        pool.map(process_test_file, [(file, exp_dir, source_dir, class_name, crop_size, test_n_crops, random_seed) for file in test])
 
 def retrieve_augmentation_crops(test_id, base_id, c):
     augmented_crops = os.listdir(f"{XAI_AUG_ROOT}/{base_id}/crops_for_augmentation/{c}")
@@ -161,11 +158,14 @@ if __name__ == '__main__':
                 if c_type == "base": class_source = f"{SOURCE_DATA_DIR}/{c}"
                 else: class_source = f"{SOURCE_DATA_DIR}/{c}-{BASE_ID}_NN_{c_type}"
         
-                extract_crops_parallel(DATASET, class_source, c, TRAIN_REPLICAS, CROP_SIZE, TRAIN_DL_MF, TEST_N_CROPS, RANDOM_SEED)
+                extract_crops_parallel(DATASET, EXP_DIR, class_source, c, TRAIN_REPLICAS, CROP_SIZE, TRAIN_DL_MF, TEST_N_CROPS, RANDOM_SEED)
                 
                 if "augmented" in TEST_ID:
                     BASE_ID, _ = TEST_ID.split(':')
                     retrieve_augmentation_crops(TEST_ID, BASE_ID, c)
+            
+            class_n_train_crops = len(os.listdir(f"{EXP_DIR}/train/{c}"))
+            print(f"Class {c} -> Train Instances ({CROP_SIZE}x{CROP_SIZE}-sized Crops): {class_n_train_crops}")
                     
             EXP_METADATA["FT_DATASET_PREP_TIMESTAMP"] = str(datetime.now())
             save_metadata(EXP_METADATA, EXP_METADATA_PATH)
@@ -193,8 +193,7 @@ if __name__ == '__main__':
         pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f'Number of trainable parameters: {pytorch_total_params}')
         
-        trainer = Trainer(model=model, t_set=t_dl, v_set=v_dl, DEVICE=DEVICE, model_path=OUTPUT_DIR, 
-                          history_path=OUTPUT_DIR, exp_metadata=EXP_METADATA, last_cp=last_cp)
+        trainer = Trainer(model=model, t_set=t_dl, v_set=v_dl, DEVICE=DEVICE, model_path=OUTPUT_DIR, history_path=OUTPUT_DIR, exp_metadata=EXP_METADATA, last_cp=last_cp)
         trainer()
         
         EXP_METADATA["FINE_TUNING_TIMESTAMP"] = str(datetime.now())
