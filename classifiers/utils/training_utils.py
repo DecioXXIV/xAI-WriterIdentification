@@ -79,45 +79,22 @@ def plot_metric(metric, output_dir, test_id):
 def set_optimizer(optim_type, lr_, model, cp=None):
     if optim_type == 'adam':
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_,
-            betas = [0.9, 0.999],
-            weight_decay = 0.0001)
+            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.0001)
     elif optim_type == 'sgd':
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_,
-            momentum = 0.9,
-            nesterov = False,
-            weight_decay = 0.0001)
+            lr = lr_, momentum = 0.9, nesterov = False, weight_decay = 0.0001)
     elif optim_type == 'nesterov':
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_,
-            momentum = 0.9,
-            nesterov = True,
-            weight_decay = 0.0001)
-    elif optim_type == 'adamw': # Net Weights are decayed of a factor equal to "lr * weight_decay"
-        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_,
-            betas = [0.9, 0.999],
-            weight_decay = 0.0001)
-    
-    ### TESTS ###
+            lr = lr_, momentum = 0.9, nesterov = True, weight_decay = 0.0001)
     elif optim_type == 'adamw-1%':
         optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_,
-            betas = [0.9, 0.999],
-            weight_decay = 0.01)
-    
+            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.01)
     elif optim_type == 'adamw-2.5%':
         optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_,
-            betas = [0.9, 0.999],
-            weight_decay = 0.025) 
-    
+            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.025) 
     elif optim_type == 'adamw-5%':
         optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_,
-            betas = [0.9, 0.999],
-            weight_decay = 0.05) 
+            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.05) 
     else:
         raise Exception('The selected optimization type is not available.')
     
@@ -154,10 +131,12 @@ class Trainer():
     def train_one_epoch(self, optimizer, criterion):
         self.model.train()
         epoch_loss, epoch_acc, total_samples = 0.0, 0.0, 0
-        
+        # epoch_loss, epoch_acc, total_samples = torch.tensor(0.0), 0.0, 0
+
         for data, target in tqdm(self.t_set, desc="Training"):
             bs = data.size()[0]
             data, target = data.to(self.device), target.to(self.device)
+            # data, target, epoch_loss = data.to(self.device, non_blocking=True), target.to(self.device, non_blocking=True), epoch_loss.to(self.device, non_blocking=True)
             
             # Training Step
             optimizer.zero_grad()
@@ -166,6 +145,7 @@ class Trainer():
             correct, _ = self.compute_minibatch_accuracy(output, target)
             
             epoch_loss += loss.item() * bs
+            # epoch_loss += loss.detach() * bs
             epoch_acc += correct
             total_samples += bs
             
@@ -173,6 +153,7 @@ class Trainer():
             optimizer.step()
         
         epoch_final_loss = epoch_loss / total_samples
+        # epoch_final_loss = epoch_loss.item() / total_samples
         epoch_final_acc = epoch_acc / total_samples
         
         print(f"Train_Loss: {epoch_final_loss} - Train_Accuracy: {epoch_final_acc}\n")
@@ -182,21 +163,25 @@ class Trainer():
     def validate_one_epoch(self, criterion):
         self.model.eval()
         val_loss, val_acc, total_samples = 0.0, 0.0, 0
-        
+        # val_loss, val_acc, total_samples = torch.tensor(0.0), 0.0, 0
+
         with torch.no_grad():
             for data, target in tqdm(self.v_set, desc="Validation"):
                 bs = data.size()[0]
                 data, target = data.to(self.device), target.to(self.device)
+                # data, target, val_loss = data.to(self.device, non_blocking=True), target.to(self.device, non_blocking=True), val_loss.to(self.device, non_blocking=True)
                 
                 output = self.model(data)
                 loss = criterion(output, target)
                 correct, _ = self.compute_minibatch_accuracy(output, target)
                 
                 val_loss += loss.item() * bs
+                # val_loss += loss.detach() * bs
                 val_acc += correct
                 total_samples += bs
         
         epoch_final_loss = val_loss / total_samples
+        # epoch_final_loss = val_loss.item() / total_samples
         epoch_final_acc = val_acc / total_samples
         
         print(f"Val_Loss: {epoch_final_loss} - Val_Accuracy: {epoch_final_acc}\n")
