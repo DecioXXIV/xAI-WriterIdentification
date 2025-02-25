@@ -24,6 +24,7 @@ def process_test_set(dl, device, model):
         if data.dim() == 4:
             labels.append(target.max().item())
             data, target = data.to(device), target.to(device)
+            # data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
             bs = data.size(0)
             
             with torch.no_grad():
@@ -35,6 +36,7 @@ def process_test_set(dl, device, model):
         if data.dim() == 5:
             labels.extend(list(target.numpy()))
             data, target = data.to(device), target.to(device)
+            # data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
             bs, ncrops, c, h, w = data.size()
             
             with torch.no_grad():
