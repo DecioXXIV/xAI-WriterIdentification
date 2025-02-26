@@ -52,14 +52,14 @@ def create_image_grid(
 def generate_instance_mask(
         inst_width: int,
         inst_height: int,
-        block_width: int,
-        block_height: int):
+        patch_width: int,
+        patch_height: int):
 
-    num_columns, num_rows = int(inst_width/block_width) + 1, int(inst_height/block_height) + 1
+    num_columns, num_rows = int(inst_width/patch_width) + 1, int(inst_height/patch_height) + 1
     
     idx = np.arange(int(num_columns*num_rows), dtype=np.uint16)
     np.random.shuffle(idx)
-    mask = idx.reshape((num_rows, num_columns)).repeat(block_height, axis = 0).repeat(block_width, axis = 1)*1000
+    mask = idx.reshape((num_rows, num_columns)).repeat(patch_height, axis = 0).repeat(patch_width, axis = 1)*1000
 
     mask_img = Image.fromarray(mask)
     mask_width, mask_height = mask_img.size
@@ -70,7 +70,7 @@ def generate_instance_mask(
     mask = mask_img.crop((left, top, right, bottom))
     mask = mask.crop((0, 0, inst_width, inst_height))
 
-    mask.save(f"{XAI_ROOT}/def_mask_{block_width}x{block_height}.png")
+    mask.save(f"{XAI_ROOT}/def_mask_{patch_width}x{patch_height}.png")
 
 def get_crops_bbxs(image, crop_width, crop_height):
     crop_bbxs = list()
@@ -95,14 +95,14 @@ def get_crops_bbxs(image, crop_width, crop_height):
 
 def extract_image_crops(
         file_name:str, 
-        block_width:int, 
-        block_height:int, 
+        patch_width:int, 
+        patch_height:int, 
         crop_size:int, 
         overlap:int):
     """
     Args:
         file_name (str): name of the image file (without extension) to be cropped
-        block_width (int), block_height (int): dimensions of the mask blocks
+        patch_width (int), patch_height (int): dimensions of the mask patchs
         crop_size (int): size of the (square) crop
         overlap (int): overlap (n_pixels) between adjacent crops
     
@@ -116,9 +116,9 @@ def extract_image_crops(
         print(f"'{file_name}' not found in './data' directory.")
 
     try:
-        mask_img = Image.open(f"{XAI_ROOT}/explanations/crop_level/{file_name}/{file_name}_mask_blocks_{block_width}x{block_height}.png")    
+        mask_img = Image.open(f"{XAI_ROOT}/explanations/crop_level/{file_name}/{file_name}_mask_patchs_{patch_width}x{patch_height}.png")    
     except:
-        print(f"'{file_name}_mask_blocks_{block_width}x{block_height}.png' not found in './explanations/crop_level/{file_name}' directory.")
+        print(f"'{file_name}_mask_patchs_{patch_width}x{patch_height}.png' not found in './explanations/crop_level/{file_name}' directory.")
 
     GD, NC, NR = create_image_grid(crop_size, overlap, mask_img)
 
@@ -138,7 +138,7 @@ def extract_image_crops(
             img_crop.save(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops/{file_name}_{crop_size}_{overlap}_{i}_{j}.jpg")
 
             mask_crop = mask_img.crop((x0, y0, x1, y1))
-            mask_crop.save(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops/{file_name}_mask_blocks_{block_width}x{block_height}_{crop_size}_{overlap}_{i}_{j}.png")
+            mask_crop.save(f"{XAI_ROOT}/explanations/crop_level/{file_name}/crops/{file_name}_mask_patchs_{patch_width}x{patch_height}_{crop_size}_{overlap}_{i}_{j}.png")
 
             img_array_copy = deepcopy(img_array)
             mask_array_copy = deepcopy(mask_array)

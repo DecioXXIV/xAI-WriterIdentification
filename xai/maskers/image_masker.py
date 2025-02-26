@@ -20,7 +20,7 @@ EVAL_ROOT = "./evals"
 class ImageMasker:    
     def __init__(self, inst_set: str, instances: list, paths: list, test_id: str,
                 exp_dir: str, mask_rate: float, mask_mode: str,
-                block_width: int, block_height: int,
+                patch_width: int, patch_height: int,
                 xai_algorithm: str, xai_mode: str, exp_metadata: dict):
         self.inst_set = inst_set
         self.instances = instances
@@ -29,7 +29,7 @@ class ImageMasker:
         self.exp_dir = exp_dir
         self.mask_rate = mask_rate
         self.mask_mode = mask_mode
-        self.block_width, self.block_height = block_width, block_height
+        self.patch_width, self.patch_height = patch_width, patch_height
         self.xai_algorithm = xai_algorithm
         self.xai_mode = xai_mode
         self.exp_metadata = exp_metadata
@@ -37,7 +37,7 @@ class ImageMasker:
         self.full_img_width, self.full_img_height = 0, 0
         self.v_overlap, self.h_overlap = 0, 0
         
-        with open(f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{exp_dir}/rgb_train_stats.pkl", "rb") as f:
+        with open(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{exp_dir}/rgb_train_stats.pkl", "rb") as f:
             self.training_mean, _ = pickle.load(f)
     
     def find_patches_coordinates(self, instance_name) -> list:
@@ -52,10 +52,10 @@ class ImageMasker:
         left_b = v_cut * (902 - self.h_overlap)
         top_b = h_cut * (1279 - self.v_overlap)
 
-        mask = Image.open(f"{XAI_ROOT}/def_mask_{self.block_width}x{self.block_height}.png")
+        mask = Image.open(f"{XAI_ROOT}/def_mask_{self.patch_width}x{self.patch_height}.png")
         mask_array = np.array(mask)
         
-        with open(f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}/{instance_name}/{instance_name}_scores.pkl", "rb") as f: 
+        with open(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}/{instance_name}/{instance_name}_scores.pkl", "rb") as f: 
             base_scores = pickle.load(f)
         reduced_scores = reduce_scores(mask, base_scores)
 
@@ -63,7 +63,7 @@ class ImageMasker:
 
         for idx, score in reduced_scores.items():
             if score != [np.nan]:
-                instance_patch = f"{instance_name}_block{idx}"
+                instance_patch = f"{instance_name}_patch{idx}"
                 
                 positions = np.argwhere(mask_array == idx)
                 if positions.size > 0:
@@ -146,13 +146,13 @@ class SaliencyMasker(ImageMasker):
         
         if not os.path.exists(f"{self.INSTANCE_DIR}/masking_results.csv"):
             print("PHASE 1 -> PATCHES MAPPING")
-            instances = [i for i in os.listdir(f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}") if full_img_name in i]
+            instances = [i for i in os.listdir(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}") if full_img_name in i]
             
             with mp.Pool(mp.cpu_count()) as pool:
                 results = pool.map(self.find_patches_coordinates, instances)
             
             all_results = [item for sublist in results for item in sublist]
-            df = pd.DataFrame(all_results, columns=["Instance_Block", "Score", "Coordinates_Left", "Coordinates_Top", "Coordinates_Right", "Coordinates_Bottom"])
+            df = pd.DataFrame(all_results, columns=["Instance_Patch", "Score", "Coordinates_Left", "Coordinates_Top", "Coordinates_Right", "Coordinates_Bottom"])
             df = df.sort_values(by="Score", ascending=False)
             df.to_csv(f"{self.INSTANCE_DIR}/masking_results.csv", index=False, header=True)
         
@@ -188,7 +188,7 @@ class SaliencyMasker(ImageMasker):
             right = df.iloc[idx]["Coordinates_Right"] 
             bottom = df.iloc[idx]["Coordinates_Bottom"]
                     
-            if (right - left + 1 != self.block_width) or (bottom - top + 1 != self.block_height):
+            if (right - left + 1 != self.patch_width) or (bottom - top + 1 != self.patch_height):
                 print(f"Skipped patch {idx} due to wrong dimensions")
                 idx += 1
                 continue
@@ -255,13 +255,13 @@ class RandomMasker(ImageMasker):
         
         if not os.path.exists(f"{self.INSTANCE_DIR}/masking_results.csv"):
             print("PHASE 1 -> PATCHES MAPPING")
-            instances = [i for i in os.listdir(f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.exp_dir}") if full_img_name in i]
+            instances = [i for i in os.listdir(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}") if full_img_name in i]
             
             with mp.Pool(mp.cpu_count()) as pool:
                 results = pool.map(self.find_patches_coordinates, instances)
             
             all_results = [item for sublist in results for item in sublist]
-            df = pd.DataFrame(all_results, columns=["Instance_Block", "Score", "Coordinates_Left", "Coordinates_Top", "Coordinates_Right", "Coordinates_Bottom"])
+            df = pd.DataFrame(all_results, columns=["Instance_Patch", "Score", "Coordinates_Left", "Coordinates_Top", "Coordinates_Right", "Coordinates_Bottom"])
             df = df.sort_values(by="Score", ascending=False)
             df.to_csv(f"{self.INSTANCE_DIR}/masking_results.csv", index=False, header=True)
         
@@ -281,7 +281,7 @@ class RandomMasker(ImageMasker):
 
         """
         Random Masking Process:
-        Masking is performed by drawing one (block_width, block_height)-sized
+        Masking is performed by drawing one (patch_width, patch_height)-sized
         patch at a time.
 
         Random: drawn patches do not follow the the rigid structure defined
@@ -293,12 +293,12 @@ class RandomMasker(ImageMasker):
         
         end_condition = False
         while not end_condition:
-            left = np.random.randint(0, self.full_img_width - self.block_width + 1)
-            right = left + self.block_width
-            top = np.random.randint(0, self.full_img_height - self.block_height + 1)
-            bottom = top + self.block_height
+            left = np.random.randint(0, self.full_img_width - self.patch_width + 1)
+            right = left + self.patch_width
+            top = np.random.randint(0, self.full_img_height - self.patch_height + 1)
+            bottom = top + self.patch_height
                     
-            if (right - left != self.block_width) or (bottom - top != self.block_height):
+            if (right - left != self.patch_width) or (bottom - top != self.patch_height):
                 print(f"Skipped patch {idx} due to wrong dimensions")
                 idx += 1
                 continue

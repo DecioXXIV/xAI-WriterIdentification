@@ -6,10 +6,13 @@ from PIL import Image
 from copy import deepcopy
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import LinearSegmentedColormap
-from matplotlib.figure import Figure
 from typing import Tuple
+from datetime import datetime
 
-from utils import get_train_instance_patterns, get_test_instance_patterns
+from utils import get_train_instance_patterns, get_test_instance_patterns, save_metadata
+
+from xai.explainers.lime_base_explainer import LimeBaseExplainer
+from xai.utils.image_utils import generate_instance_mask, get_crops_bbxs
 
 XAI_ROOT = "./xai"
 
@@ -86,7 +89,7 @@ def custom_visualization(
     fig.savefig(output_path, bbox_inches="tight", dpi=300)
     plt.close(fig)
 
-def get_rois(scores_matrix, page, mask, block_width, block_height, pagename, output_dir, num_rois: int = None, threshold = 0.5):
+def get_rois(scores_matrix, page, mask, patch_width, patch_height, pagename, output_dir, num_rois: int = None, threshold = 0.5):
     if not num_rois == None:
         flat_matrix = scores_matrix.flatten()
         flat_matrix_no_nan = np.unique(flat_matrix[np.logical_not(np.isnan(flat_matrix))])
@@ -127,7 +130,7 @@ def get_rois(scores_matrix, page, mask, block_width, block_height, pagename, out
     roi_idxs.remove(0)
     
     for k, idx in enumerate(roi_idxs):
-        crop = im_rgb_backup[roi_matrix == idx].reshape(block_width, block_height, 3)
+        crop = im_rgb_backup[roi_matrix == idx].reshape(patch_width, patch_height, 3)
         cv2.imwrite(f'{output_dir}/{pagename}_ROI_{str(k)}.png', crop)
 
 def return_erased_crops(num_patches, num_random_samples, dict_scores, mask_crop_array, crop):
@@ -157,3 +160,39 @@ def return_erased_crops(num_patches, num_random_samples, dict_scores, mask_crop_
         list_erased_crops.append(masked_crop_pil)
 
     return list_erased_crops
+
+def setup_explainer(xai_algorithm, args, model_type, model, dir_name, mean, std, device):
+    explainer = None
+    
+    if xai_algorithm == "LimeBase":
+        explainer = LimeBaseExplainer(classifier=f"classifier_{model_type}", test_id=args.test_id, 
+            dir_name=dir_name, patch_size=(args.patch_width, args.patch_height), model=model,
+            surrogate_model=args.surrogate_model, mean=mean, std=std, device=device)
+    
+    return explainer
+
+def explain_instance(instance_name, label, explainer, crop_size, patch_width, patch_height, overlap, lime_iters, xai_metadata, xai_metadata_path, remove_patches):
+    if instance_name in xai_metadata["INSTANCES"]:
+        print(f"Skipping Instance '{instance_name}' with label '{label}': already explained!")
+        os.system(f"rm {XAI_ROOT}/data/{instance_name}")
+        return
+    
+    print(f"Processing Instance '{instance_name}' with label '{label}'")
+    
+    img_path = f"{XAI_ROOT}/data/{instance_name}"
+    mask_path = f"{XAI_ROOT}/def_mask_{patch_width}x{patch_height}.png"
+    if not os.path.exists(mask_path): generate_instance_mask(inst_width=902, inst_height=1279, patch_width=patch_width, patch_height=patch_height)
+    img, mask = Image.open(img_path), Image.open(mask_path)
+    
+    explainer.compute_superpixel_scores(img, mask, instance_name, label, lime_iters, crop_size, overlap)
+    explainer.visualize_superpixel_scores_outcomes(img, mask, instance_name, reduction_method="mean", min_eval=2)
+    
+    if remove_patches == "True":
+        crops_bbxs = get_crops_bbxs(img, crop_size, crop_size)
+        explainer.compute_masked_patches_explanation(img, mask, instance_name, label, crops_bbxs, reduction_method="mean", min_eval=10, num_samples_for_baseline=10)
+    
+    xai_metadata["INSTANCES"][f"{instance_name}"] = dict()
+    xai_metadata["INSTANCES"][f"{instance_name}"]["label"] = label
+    xai_metadata["INSTANCES"][f"{instance_name}"]["timestamp"] = str(datetime.now())
+    save_metadata(xai_metadata, xai_metadata_path)
+    os.system(f"rm {XAI_ROOT}/data/{instance_name}")

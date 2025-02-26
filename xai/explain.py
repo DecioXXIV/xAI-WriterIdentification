@@ -1,29 +1,23 @@
 import torch, os, pickle
-from PIL import Image
 from datetime import datetime
 from argparse import ArgumentParser
 
 from utils import load_metadata, save_metadata
-from classifiers.classifier_ResNet18.model import load_resnet18_classifier
+from classifiers.utils.fine_tune_utils import load_model
 
-from .explainers.lime_base_explainer import LimeBaseExplainer
-from .utils.image_utils import generate_instance_mask, load_rgb_mean_std, get_crops_bbxs
-from .utils.explanations_utils import get_instances_to_explain
+from xai.utils.image_utils import load_rgb_mean_std
+from xai.utils.explanations_utils import get_instances_to_explain, setup_explainer, explain_instance
 
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
 CLASSIFIERS_ROOT = "./classifiers"
 XAI_ROOT = "./xai"
 
-### ################# ###
-### SUPPORT FUNCTIONS ###
-### ################# ###
 def get_args():
     parser = ArgumentParser(description="Hyperparameters for the Explanation process", add_help=True)
     parser.add_argument("-test_id", type=str, required=True)
-    parser.add_argument("-block_width", type=int, required=True)
-    parser.add_argument("-block_height", type=int, required=True)
-    parser.add_argument("-crop_size", type=int, required=True)
+    parser.add_argument("-patch_width", type=int, required=True)
+    parser.add_argument("-patch_height", type=int, required=True)
     parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase"])
     parser.add_argument("-surrogate_model", type=str, required=True, choices=["LinReg", "Ridge"])
     parser.add_argument("-mode", type=str, required=True, choices=["base", "counterfactual_top_class"])
@@ -31,50 +25,6 @@ def get_args():
     parser.add_argument("-remove_patches", type=str, default="False")
 
     return parser.parse_args()
-
-def load_model(model_type, num_classes, cp_base, test_id, exp_metadata, device):
-    model, last_cp = None, None
-    if model_type == "ResNet18":
-        model, last_cp = load_resnet18_classifier(num_classes, "frozen", cp_base, "test", test_id, exp_metadata, device)
-    
-    return model, last_cp
-
-def setup_explainer(xai_algorithm, args, model_type, model, dir_name, mean, std, device):
-    explainer = None
-    
-    if xai_algorithm == "LimeBase":
-        explainer = LimeBaseExplainer(classifier=f"classifier_{model_type}", test_id=args.test_id, 
-            dir_name=dir_name, block_size=(args.block_width, args.block_height), model=model,
-            surrogate_model=args.surrogate_model, mean=mean, std=std, device=device)
-    
-    return explainer
-
-def explain_instance(instance_name, label, explainer, crop_size, overlap, lime_iters, xai_metadata, remove_patches):
-    if instance_name in xai_metadata["INSTANCES"]:
-        print(f"Skipping Instance '{instance_name}' with label '{label}': already explained!")
-        os.system(f"rm {XAI_ROOT}/data/{instance_name}")
-        return
-    
-    print(f"Processing Instance '{instance_name}' with label '{label}'")
-    
-    img_path = f"{XAI_ROOT}/data/{instance_name}"
-    mask_path = f"{XAI_ROOT}/def_mask_{BLOCK_WIDTH}x{BLOCK_HEIGHT}.png"
-    if not os.path.exists(mask_path): generate_instance_mask(inst_width=902, inst_height=1279, block_width=BLOCK_WIDTH, block_height=BLOCK_HEIGHT)
-    img, mask = Image.open(img_path), Image.open(mask_path)
-    
-    explainer.compute_superpixel_scores(img, mask, instance_name, label, lime_iters, crop_size, overlap)
-    explainer.visualize_superpixel_scores_outcomes(img, mask, instance_name, reduction_method="mean", min_eval=2)
-    
-    if remove_patches == "True":
-        crops_bbxs = get_crops_bbxs(img, crop_size, crop_size)
-        explainer.compute_masked_patches_explanation(img, mask, instance_name, label, crops_bbxs, reduction_method="mean", min_eval=10, num_samples_for_baseline=10)
-    
-    xai_metadata["INSTANCES"][f"{instance_name}"] = dict()
-    xai_metadata["INSTANCES"][f"{instance_name}"]["label"] = label
-    xai_metadata["INSTANCES"][f"{instance_name}"]["timestamp"] = str(datetime.now())
-    save_metadata(xai_metadata, XAI_METADATA_PATH)
-    os.system(f"rm {XAI_ROOT}/data/{instance_name}")
-    
 
 ### #### ###
 ### MAIN ###
@@ -90,20 +40,20 @@ if __name__ == '__main__':
         print(e)
         exit(1)
         
-    BLOCK_WIDTH, BLOCK_HEIGHT = args.block_width, args.block_height
-    CROP_SIZE = args.crop_size
+    PATCH_WIDTH, PATCH_HEIGHT = args.patch_width, args.patch_height
+    CROP_SIZE = EXP_METADATA["FINE_TUNING_HP"]["crop_size"]
     XAI_ALGORITHM = args.xai_algorithm
     SURROGATE_MODEL = args.surrogate_model
     MODE = args.mode
     LIME_ITERS = args.lime_iters
     REMOVE_PATCHES = args.remove_patches
 
-    cp_base = f"{CLASSIFIERS_ROOT}/cp/Test_3_TL_val_best_model.pth"
-
     MODEL_TYPE = EXP_METADATA["MODEL_TYPE"]
     CLASSES_DATA = EXP_METADATA["CLASSES"]
     classes = list(CLASSES_DATA.keys())
     num_classes = len(classes)
+    
+    cp_base = f"{CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/cp/Test_3_TL_val_best_model.pth"
         
     start, dir_name = None, None
     if f"{XAI_ALGORITHM}_{MODE}_METADATA" in EXP_METADATA:
@@ -114,26 +64,26 @@ if __name__ == '__main__':
         start = EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["XAI_START_TIMESTAMP"]
         dir_name = EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["DIR_NAME"]
         
-        XAI_METADATA_PATH = f"{XAI_ROOT}/explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}/{TEST_ID}-xai_metadata.json"
+        XAI_METADATA_PATH = f"{XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}/{TEST_ID}-xai_metadata.json"
         XAI_METADATA = load_metadata(XAI_METADATA_PATH)
         
     else:
         start = datetime.now().strftime("%Y.%m.%d_%H.%M.%S")
         dir_name = f"{TEST_ID}-{MODEL_TYPE}-{start}-{XAI_ALGORITHM}-{SURROGATE_MODEL}"
         
-        explanations_dir_path = f"{XAI_ROOT}/explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}"
+        explanations_dir_path = f"{XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}"
         os.makedirs(explanations_dir_path, exist_ok=True)
         
         EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"] = dict()
         EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["XAI_START_TIMESTAMP"] = start
-        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["BLOCK_DIM"] = {"WIDTH": BLOCK_WIDTH, "HEIGHT": BLOCK_HEIGHT}
+        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["PATCH_DIM"] = {"WIDTH": PATCH_WIDTH, "HEIGHT": PATCH_HEIGHT}
         EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["DIR_NAME"] = dir_name
         EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["REMOVE_PATCHES"] = REMOVE_PATCHES
         save_metadata(EXP_METADATA, EXP_METADATA_PATH)
         
         XAI_METADATA = dict()
         XAI_METADATA["INSTANCES"] = dict()
-        XAI_METADATA_PATH = f"{XAI_ROOT}/explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}/{TEST_ID}-xai_metadata.json"
+        XAI_METADATA_PATH = f"{XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}/{TEST_ID}-xai_metadata.json"
         save_metadata(XAI_METADATA, XAI_METADATA_PATH) 
     
     print("*** BEGINNING OF EXPLAINABILITY PROCESS ***")
@@ -181,9 +131,9 @@ if __name__ == '__main__':
     OVERLAP = CROP_SIZE - 25
 
     for instance_name, label in zip(instances, labels):
-        explain_instance(instance_name, label, explainer, CROP_SIZE, OVERLAP, LIME_ITERS, XAI_METADATA, REMOVE_PATCHES)
+        explain_instance(instance_name, label, explainer, CROP_SIZE, PATCH_WIDTH, PATCH_HEIGHT, OVERLAP, LIME_ITERS, XAI_METADATA, XAI_METADATA_PATH, REMOVE_PATCHES)
     
-    os.system(f"cp {CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}/rgb_train_stats.pkl {XAI_ROOT}/explanations/patches_{BLOCK_WIDTH}x{BLOCK_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
+    os.system(f"cp {CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}/rgb_train_stats.pkl {XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
     EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["XAI_END_TIMESTAMP"] = str(datetime.now())
     save_metadata(EXP_METADATA, EXP_METADATA_PATH)
     

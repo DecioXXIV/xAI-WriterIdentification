@@ -23,13 +23,13 @@ torch.backends.cudnn.benchmark = True
 ### ################## ###
 class LimeBaseExplainer:
     def __init__(self, classifier: str, test_id: str, dir_name: str,
-            block_size: Tuple[int, int], model, surrogate_model: str="LinReg",
+            patch_size: Tuple[int, int], model, surrogate_model: str="LinReg",
             mean=None, std=None, device=None):
         
         self.classifier = classifier
         self.test_id = test_id
         self.dir_name = dir_name
-        self.block_width, self.block_height = block_size
+        self.patch_width, self.patch_height = patch_size
         self.model = model
         self.surrogate_model = surrogate_model
         if device is not None: self.device = device
@@ -42,16 +42,15 @@ class LimeBaseExplainer:
     def compute_superpixel_scores(self, base_img, base_mask, instance_name, label_idx, n_iter, crop_size, overlap):
         instance_name = instance_name[:-4]
         scores_name = f"{instance_name}_scores.pkl"
-        output_dir = f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}/{instance_name}"
+        output_dir = f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.dir_name}/{instance_name}"
         os.makedirs(output_dir, exist_ok=True)
 
         scores = defaultdict(list)
 
         # Lime Inizialization
         interpretable_model = None
-        match self.surrogate_model:
-            case "LinReg": interpretable_model = SkLearnLinearRegression()
-            case "Ridge": interpretable_model = SkLearnRidge(alpha=1)
+        if self.surrogate_model == "LinReg": interpretable_model = SkLearnLinearRegression()
+        elif self.surrogate_model == "Ridge": interpretable_model = SkLearnRidge(alpha=1)
 
         exp_eucl_distance = get_exp_kernel_similarity_function('euclidean', kernel_width=1000)
         lime = Lime(forward_func=self.model, interpretable_model=interpretable_model, similarity_func=exp_eucl_distance)
@@ -93,7 +92,7 @@ class LimeBaseExplainer:
 
                         for idx in idxs:
                             super_pixel = norm_attr_3d[mask_array == idx]
-                            if len(super_pixel) == self.block_width*self.block_height:
+                            if len(super_pixel) == self.patch_width*self.patch_height:
                                 scores[idx].append(np.mean(super_pixel))
             
             with open(f"{output_dir}/{scores_name}", "wb") as handle:
@@ -102,7 +101,7 @@ class LimeBaseExplainer:
     def visualize_superpixel_scores_outcomes(self, base_img, base_mask, instance_name, reduction_method, min_eval):  
         instance_name = instance_name[:-4]
         scores_name = f"{instance_name}_scores.pkl"
-        output_dir = f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}/{instance_name}"
+        output_dir = f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.dir_name}/{instance_name}"
 
         with open(f"{output_dir}/{scores_name}", "rb") as handle:
             scores = pickle.load(handle)
@@ -112,14 +111,14 @@ class LimeBaseExplainer:
         custom_visualization(mask_with_attr_scores, min_eval, f"{output_dir}/{instance_name}")
 
         try:
-            get_rois(mask_with_attr_scores, base_img, base_mask, self.block_width, self.block_height, instance_name, output_dir, num_rois = 5, threshold = 0.5)
+            get_rois(mask_with_attr_scores, base_img, base_mask, self.patch_width, self.patch_height, instance_name, output_dir, num_rois = 5, threshold = 0.5)
         except:
             print("Error in ROIs visualization")
 
     def compute_masked_patches_explanation(self, base_img, base_mask, instance_name, label_idx, crops_bbxs, reduction_method, min_eval, num_samples_for_baseline=10, save_crops=False):
         instance_name = instance_name[:-4]
         scores_name = f"{instance_name}_scores.pkl"
-        output_dir = f"{XAI_ROOT}/explanations/patches_{self.block_width}x{self.block_height}_removal/{self.dir_name}/{instance_name}"
+        output_dir = f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.dir_name}/{instance_name}"
 
         img_transforms = T.Compose([
             T.ToTensor(),
@@ -150,7 +149,7 @@ class LimeBaseExplainer:
 
             mask_crop_array = np.array(mask_crop)
             idxs = np.unique(mask_crop_array)
-            valid_idxs = [idx for idx in idxs if np.sum(mask_crop_array == idx) == self.block_width * self.block_height]
+            valid_idxs = [idx for idx in idxs if np.sum(mask_crop_array == idx) == self.patch_width * self.patch_height]
 
             filtered_simplified_scores = {k: v for k, v in simplified_scores.items() if k in valid_idxs}
             sorted_filtered_simplified_scores = dict(sorted(filtered_simplified_scores.items(), key=lambda item: item[1], reverse=True))

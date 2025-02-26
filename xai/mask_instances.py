@@ -1,18 +1,12 @@
-import os
 from argparse import ArgumentParser
-from typing import Tuple
 
-from utils import load_metadata, get_train_instance_patterns, get_test_instance_patterns
+from utils import load_metadata
 
-from .maskers.image_masker import SaliencyMasker, RandomMasker
+from xai.maskers.image_masker import SaliencyMasker, RandomMasker
+from xai.utils.mask_utils import setup_masking_process
 
 LOG_ROOT = "./log"
-DATASET_ROOT = "./datasets"
-XAI_ROOT = "./xai"
 
-### ################# ###
-### SUPPORT FUNCTIONS ###
-### ################# ###
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("-test_id", type=str, required=True)
@@ -23,23 +17,7 @@ def get_args():
     parser.add_argument("-mask_mode", type=str, required=True, choices=["saliency", "random"])
 
     return parser.parse_args()
-
-def setup_masking_process(dataset, classes, instance_set) -> Tuple[list, list]:
-    dataset_dir = f"{DATASET_ROOT}/{dataset}"
-    instances, instance_full_paths = list(), list()
-    
-    patterns = get_train_instance_patterns() if instance_set == "train" else get_test_instance_patterns()
-    pattern_func = patterns.get(dataset, lambda f: True)
-    
-    for c in classes:
-        class_instances = [inst for inst in os.listdir(f"{dataset_dir}/{c}") if pattern_func(inst)]
-        
-        for inst in class_instances:
-            instances.append(inst)
-            instance_full_paths.append(f"{dataset_dir}/{c}/{inst}")
-    
-    return instances, instance_full_paths
-            
+ 
 ### #### ###
 ### MAIN ###
 ### #### ###
@@ -70,8 +48,8 @@ if __name__ == '__main__':
     DATASET = EXP_METADATA["DATASET"]
     CLASSES = list(EXP_METADATA["CLASSES"].keys())
     EXP_DIR = EXP_METADATA[f"{XAI_ALGORITHM}_{XAI_MODE}_METADATA"]["DIR_NAME"]
-    BLOCK_WIDTH = EXP_METADATA[f"{XAI_ALGORITHM}_{XAI_MODE}_METADATA"]["BLOCK_DIM"]["WIDTH"]
-    BLOCK_HEIGHT = EXP_METADATA[f"{XAI_ALGORITHM}_{XAI_MODE}_METADATA"]["BLOCK_DIM"]["HEIGHT"]
+    PATCH_WIDTH = EXP_METADATA[f"{XAI_ALGORITHM}_{XAI_MODE}_METADATA"]["PATCH_DIM"]["WIDTH"]
+    PATCH_HEIGHT = EXP_METADATA[f"{XAI_ALGORITHM}_{XAI_MODE}_METADATA"]["PATCH_DIM"]["HEIGHT"]
     
     instances, paths = setup_masking_process(DATASET, CLASSES, INSTANCE_SET)
     
@@ -79,12 +57,12 @@ if __name__ == '__main__':
     if MASK_MODE == "saliency":
         masker = SaliencyMasker(inst_set=INSTANCE_SET, instances=instances, paths=paths, test_id=TEST_ID,
             exp_dir=EXP_DIR, mask_rate=MASK_RATE, mask_mode=MASK_MODE,
-            block_width=BLOCK_WIDTH, block_height=BLOCK_HEIGHT,
+            patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
             xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, exp_metadata=EXP_METADATA)
     elif MASK_MODE == "random":
         masker = RandomMasker(inst_set=INSTANCE_SET, instances=instances, paths=paths, test_id=TEST_ID,
             exp_dir=EXP_DIR, mask_rate=MASK_RATE, mask_mode=MASK_MODE,
-            block_width=BLOCK_WIDTH, block_height=BLOCK_HEIGHT,
+            patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
             xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, exp_metadata=EXP_METADATA)
     
     masker()

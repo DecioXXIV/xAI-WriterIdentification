@@ -1,24 +1,14 @@
 import os, torch
 import numpy as np
 from argparse import ArgumentParser
-from sklearn.metrics import accuracy_score
 
-from utils import load_metadata, get_test_instance_patterns
+from utils import load_metadata
 
-from xai.maskers.image_masker import SaliencyMasker, RandomMasker
-from classifiers.classifier_ResNet18.model import load_resnet18_classifier
-from classifiers.utils.dataloader_utils import Faithfulness_Test_DataLoader, load_rgb_mean_std
-from classifiers.utils.testing_utils import process_test_set
+from evals.utils.faithfulness_utils import get_test_instances_to_mask, mask_test_instances, test_model
 
 LOG_ROOT = "./log"
-DATASET_ROOT = "./datasets"
-CLASSIFIERS_ROOT = "./classifiers"
-XAI_ROOT = "./xai"
 EVAL_ROOT = "./evals"
 
-### ################# ###
-### SUPPORT FUNCTIONS ###
-### ################# ###
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("-test_id", type=str, required=True)
@@ -29,71 +19,6 @@ def get_args():
     parser.add_argument("-test_iterations", type=int, default=1)
     
     return parser.parse_args()
-
-def get_test_instances_to_mask(dataset, classes):
-    dataset_dir = f"{DATASET_ROOT}/{dataset}"
-    instances, instance_full_paths = list(), list()
-    
-    patterns = get_test_instance_patterns()
-    pattern_func = patterns.get(dataset, lambda f: True)
-    
-    for c in classes:
-        class_instances = [inst for inst in os.listdir(f"{dataset_dir}/{c}") if pattern_func(inst)]
-        
-        for inst in class_instances:
-            instances.append(inst)
-            instance_full_paths.append(f"{dataset_dir}/{c}/{inst}")
-    
-    return instances, instance_full_paths
-
-def mask_test_instances(instances, paths, test_id, exp_dir, mask_rate, mask_mode, block_width, block_height, xai_algorithm, exp_metadata):
-    masker = None
-    
-    if mask_mode == "saliency":
-        masker = SaliencyMasker(inst_set="test", instances=instances, paths=paths, test_id=test_id,
-            exp_dir=exp_dir, mask_rate=mask_rate, mask_mode=mask_mode,
-            block_width=block_width, block_height=block_height,
-            xai_algorithm=xai_algorithm, xai_mode="base", exp_metadata=exp_metadata)
-    elif mask_mode == "random":
-        masker = RandomMasker(inst_set="test", instances=instances, paths=paths, test_id=test_id,
-            exp_dir=exp_dir, mask_rate=mask_rate, mask_mode=mask_mode,
-            block_width=block_width, block_height=block_height,
-            xai_algorithm=xai_algorithm, xai_mode="base", exp_metadata=exp_metadata)
-    
-    masker()
-    
-    dir_name = exp_metadata[f"{xai_algorithm}_base_METADATA"]["DIR_NAME"]
-    MASK_METADATA_PATH = f"{XAI_ROOT}/mask_images/{dir_name}/test_{mask_mode}_{mask_rate}_{xai_algorithm}-metadata.json"
-    MASK_METADATA = load_metadata(MASK_METADATA_PATH)
-    
-    mask_rate2instance = MASK_METADATA["INSTANCES"]
-    total_instances, bad_instances = len(mask_rate2instance), 0
-    for _, masked_area in mask_rate2instance.items():
-        if masked_area < mask_rate: bad_instances += 1
-    
-    if bad_instances < 0.33 * total_instances: return True
-    else: return False
-
-def test_model(model_type, test_id, classes, xai_algorithm, mask_rate, mask_mode):
-    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    CP_BASE = f"{CLASSIFIERS_ROOT}/cp/Test_3_TL_val_best_model.pth"
-    
-    model = None
-    if model_type == "ResNet18":
-        model, _ = load_resnet18_classifier(len(classes), "frozen", CP_BASE, "test", test_id, None, DEVICE)
-    
-    EXP_DIR = f"{CLASSIFIERS_ROOT}/classifier_{model_type}/tests/{test_id}"
-    
-    test_set_dir = f"{EVAL_ROOT}/faithfulness/{test_id}/test_set_masked_{mask_mode}_{mask_rate}_{xai_algorithm}"
-    mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}")
-    
-    dl = Faithfulness_Test_DataLoader(directory=test_set_dir, classes=classes, batch_size=1, img_crop_size=380, mean=mean_, std=std_)
-    
-    _, labels, preds, _, idx_to_c = process_test_set(dl, DEVICE, model)
-    label_class_names = [idx_to_c[id_] for id_ in labels]
-    pred_class_names = [idx_to_c[id_] for id_ in preds]
-    
-    return accuracy_score(label_class_names, pred_class_names)
     
 ### #### ###
 ### MAIN ###
@@ -116,8 +41,8 @@ if __name__ == '__main__':
     DATASET = EXP_METADATA["DATASET"]
     CLASSES = list(EXP_METADATA["CLASSES"].keys())
     EXP_DIR = EXP_METADATA[f"{XAI_ALGORITHM}_base_METADATA"]["DIR_NAME"]
-    BLOCK_WIDTH = EXP_METADATA[f"{XAI_ALGORITHM}_base_METADATA"]["BLOCK_DIM"]["WIDTH"]
-    BLOCK_HEIGHT = EXP_METADATA[f"{XAI_ALGORITHM}_base_METADATA"]["BLOCK_DIM"]["HEIGHT"]
+    PATCH_WIDTH = EXP_METADATA[f"{XAI_ALGORITHM}_base_METADATA"]["PATCH_DIM"]["WIDTH"]
+    PATCH_HEIGHT = EXP_METADATA[f"{XAI_ALGORITHM}_base_METADATA"]["PATCH_DIM"]["HEIGHT"]
     
     instances, paths = get_test_instances_to_mask(DATASET, CLASSES)
     
@@ -138,7 +63,7 @@ if __name__ == '__main__':
                 os.system(f"cp {src} {dest}")
             mask_condition = True
         
-        else: mask_condition = mask_test_instances(instances, paths, TEST_ID, EXP_DIR, mask_rate, MASK_MODE, BLOCK_WIDTH, BLOCK_HEIGHT, XAI_ALGORITHM, EXP_METADATA)
+        else: mask_condition = mask_test_instances(instances, paths, TEST_ID, EXP_DIR, mask_rate, MASK_MODE, PATCH_WIDTH, PATCH_HEIGHT, XAI_ALGORITHM, EXP_METADATA)
         
         if mask_condition:
             mask_rate_performances = np.zeros(TEST_ITERATIONS)

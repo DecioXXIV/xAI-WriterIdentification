@@ -8,8 +8,6 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 
-LOG_ROOT = "./log"
-
 ### ############## ###
 ### DATASETS STATS ###
 ### ############## ###
@@ -57,7 +55,6 @@ def load_rgb_mean_std(root):
 ### ################# ###
 ### CUSTOM TRANSFORMS ###
 ### ################# ###
-
 ### Invert ###
 class Invert(object):
     def __call__(self, x):
@@ -230,7 +227,7 @@ class Train_DataLoader(Base_DataLoader):
         weights = self.make_weights_for_balanced_classes(dataset.imgs, len(dataset.classes))
         weights = torch.DoubleTensor(weights)
         sampler = WeightedRandomSampler(weights, len(weights))
-        loader = DataLoader(dataset, batch_size=self.batch_size, sampler=sampler, num_workers=num_workers, pin_memory=True)
+        loader = DataLoader(dataset, batch_size=self.batch_size, sampler=sampler, num_workers=num_workers)
         
         return dataset, loader
 
@@ -249,7 +246,7 @@ class Test_DataLoader(Base_DataLoader):
     def load_data(self):
         num_workers = max(1, int(os.cpu_count()/2))
         dataset = self.generate_dataset()
-        loader = DataLoader(dataset, batch_size=self.batch_size, num_workers=num_workers, pin_memory=True, shuffle=False)
+        loader = DataLoader(dataset, batch_size=self.batch_size, num_workers=num_workers)
         
         return dataset, loader
 

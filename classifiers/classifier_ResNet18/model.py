@@ -38,7 +38,7 @@ def load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_met
     last_cp = None
     
     if phase == "train":
-        if "refine" in test_id:
+        if "refined" in test_id:
             base_id, _ = test_id.split(':')
             last_cp_path = f"{CLASSIFIERS_ROOT}/classifier_ResNet18/tests/{base_id}/output/checkpoints/Test_{base_id}_MLC_val_best_model.pth"
             last_cp = torch.load(last_cp_path)
