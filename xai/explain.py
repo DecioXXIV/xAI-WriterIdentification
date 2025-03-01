@@ -2,7 +2,7 @@ import torch, os, pickle
 from datetime import datetime
 from argparse import ArgumentParser
 
-from utils import load_metadata, save_metadata
+from utils import load_metadata, save_metadata, str2bool, get_model_base_checkpoint
 from classifiers.utils.fine_tune_utils import load_model
 
 from xai.utils.image_utils import load_rgb_mean_std
@@ -22,7 +22,7 @@ def get_args():
     parser.add_argument("-surrogate_model", type=str, required=True, choices=["LinReg", "Ridge"])
     parser.add_argument("-mode", type=str, required=True, choices=["base", "counterfactual_top_class"])
     parser.add_argument("-lime_iters", type=int, default=3)
-    parser.add_argument("-remove_patches", type=str, default="False")
+    parser.add_argument("-remove_patches", type=str2bool, default=False)
 
     return parser.parse_args()
 
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     classes = list(CLASSES_DATA.keys())
     num_classes = len(classes)
     
-    cp_base = f"{CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/cp/Test_3_TL_val_best_model.pth"
+    cp_base = get_model_base_checkpoint(MODEL_TYPE)
         
     start, dir_name = None, None
     if f"{XAI_ALGORITHM}_{MODE}_METADATA" in EXP_METADATA:

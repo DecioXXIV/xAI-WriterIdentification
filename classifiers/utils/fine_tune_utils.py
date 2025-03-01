@@ -30,17 +30,17 @@ def process_train_file(args):
         for n, crop in enumerate(crops): crop.save(f"{exp_dir}/train/{class_name}/{file[:-4]}_cp{i+1}_crop{n+1}{file[-4:]}")
 
 def process_test_file(args):
-    file, exp_dir, source_dir, class_name, crop_size, test_n_crops, random_seed = args
+    file, exp_dir, source_dir, class_name, crop_size, test_n_crops = args
     
     img = Image.open(os.path.join(source_dir, file))
     
-    val_crops = n_random_crops(img, int(test_n_crops/4), (crop_size, crop_size), random_seed)
+    val_crops = n_random_crops(img, int(test_n_crops/4), (crop_size, crop_size))
     for n, crop in enumerate(val_crops): crop.save(f"{exp_dir}/val/{class_name}/{file[:-4]}_crop{n+1}{file[-4:]}")
     
-    test_crops = n_random_crops(img, test_n_crops, (crop_size, crop_size), random_seed)
+    test_crops = n_random_crops(img, test_n_crops, (crop_size, crop_size))
     for n, crop in enumerate(test_crops): crop.save(f"{exp_dir}/test/{class_name}/{file[:-4]}_crop{n+1}{file[-4:]}")
 
-def extract_crops_parallel(dataset, exp_dir, source_dir, class_name, train_replicas, crop_size, mult_factor, test_n_crops, random_seed):
+def extract_crops_parallel(dataset, exp_dir, source_dir, class_name, train_replicas, crop_size, mult_factor, test_n_crops):
     files = os.listdir(source_dir)
     
     train_instance_patterns = get_train_instance_patterns()
@@ -55,7 +55,7 @@ def extract_crops_parallel(dataset, exp_dir, source_dir, class_name, train_repli
         pool.map(process_train_file, [(file, exp_dir, source_dir, class_name, train_replicas, crop_size, mult_factor) for file in train])
     
     with multiprocessing.Pool(num_workers) as pool:
-        pool.map(process_test_file, [(file, exp_dir, source_dir, class_name, crop_size, test_n_crops, random_seed) for file in test])
+        pool.map(process_test_file, [(file, exp_dir, source_dir, class_name, crop_size, test_n_crops) for file in test])
 
 def retrieve_augmentation_crops(test_id, base_id, model_type, c):
     augmented_crops = os.listdir(f"{XAI_AUG_ROOT}/{base_id}/crops_for_augmentation/{c}")
@@ -65,8 +65,11 @@ def retrieve_augmentation_crops(test_id, base_id, model_type, c):
         os.system(f"cp {src} {dst}")
     
 def load_model(model_type, num_classes, mode, cp_base, phase, test_id, exp_metadata, device):
+    print(f"Loading Model '{model_type}'...")
     model, last_cp = None, None
     if model_type == "ResNet18":
         model, last_cp = load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_metadata, device)
     
+    print("...Model successfully loaded!")
+
     return model, last_cp

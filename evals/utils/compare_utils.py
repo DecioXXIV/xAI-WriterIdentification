@@ -8,7 +8,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from utils import load_metadata, get_test_instance_patterns
+from utils import load_metadata, get_test_instance_patterns, get_model_base_checkpoint
 
 from classifiers.utils.fine_tune_utils import load_model
 from classifiers.classifier_ResNet18.utils.dataloader_utils import Confidence_Test_DataLoader, load_rgb_mean_std
@@ -46,10 +46,10 @@ def pair_confidence_test(baseline_id, retrained_id, mode, mult_factors, iters):
     CROP_SIZE = 380
     B_MODEL_TYPE, R_MODEL_TYPE = BASELINE_METADATA["MODEL_TYPE"], RETRAINED_METADATA["MODEL_TYPE"]
     BASELINE_CLASSES, RETRAINED_CLASSES = BASELINE_METADATA["CLASSES"], RETRAINED_METADATA["CLASSES"]
-    cp = f"{CLASSIFIERS_ROOT}/classifier_{B_MODEL_TYPE}/cp/Test_3_TL_val_best_model.pth"
+    cp_base = get_model_base_checkpoint(B_MODEL_TYPE)
     
-    model_baseline, _ = load_model(B_MODEL_TYPE, len(BASELINE_CLASSES), "frozen", cp, "test", baseline_id, BASELINE_METADATA, DEVICE)
-    model_retrained, _ = load_model(R_MODEL_TYPE, len(RETRAINED_CLASSES), "frozen", cp, "test", retrained_id, RETRAINED_METADATA, DEVICE)
+    model_baseline, _ = load_model(B_MODEL_TYPE, len(BASELINE_CLASSES), "frozen", cp_base, "test", baseline_id, BASELINE_METADATA, DEVICE)
+    model_retrained, _ = load_model(R_MODEL_TYPE, len(RETRAINED_CLASSES), "frozen", cp_base, "test", retrained_id, RETRAINED_METADATA, DEVICE)
     
     root_dir = f"{EVALS_ROOT}/bvr_comparisons/{baseline_id}/VERSUS-{retrained_id}/confidence/{mode}"
     os.makedirs(root_dir, exist_ok=True)

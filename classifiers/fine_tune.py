@@ -1,8 +1,9 @@
 import os, torch
+import numpy as np
 from datetime import datetime
 from argparse import ArgumentParser
 
-from utils import load_metadata, save_metadata
+from utils import load_metadata, save_metadata, get_model_base_checkpoint
 
 from classifiers.utils.dataloader_utils import Train_DataLoader, Test_DataLoader, load_rgb_mean_std
 from classifiers.utils.training_utils import Trainer, plot_metric
@@ -21,7 +22,7 @@ def get_args():
     parser.add_argument("-lr", type=float, required=True)
     parser.add_argument("-train_replicas", type=int, required=True)
     parser.add_argument("-train_dl_mf", type=int, default=1)
-    parser.add_argument("-random_seed", type=int, default=24)
+    parser.add_argument("-random_seed", type=int, default=None)
     parser.add_argument("-epochs", type=int, default=50)
     parser.add_argument("-ft_mode", type=str, default="frozen", choices=["frozen", "full"])
     
@@ -49,15 +50,15 @@ if __name__ == '__main__':
     LR = args.lr
     TRAIN_REPLICAS = args.train_replicas
     TRAIN_DL_MF = args.train_dl_mf
+    RANDOM_SEED = args.random_seed if args.random_seed is not None else np.random.randint(0, 10e6)
     TEST_N_CROPS = 250
-    RANDOM_SEED = args.random_seed
     EPOCHS = args.epochs
     FT_MODE = args.ft_mode
     
     SOURCE_DATA_DIR = f"{DATASET_ROOT}/{DATASET}/processed"
     EXP_DIR = f"{CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}"
     OUTPUT_DIR = f"{CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}/output"
-    MODEL_PATH = f"{CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/cp/Test_3_TL_val_best_model.pth"
+    CP_BASE = get_model_base_checkpoint(MODEL_TYPE)
     
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -112,14 +113,18 @@ if __name__ == '__main__':
     
         print("PHASE 2 -> MODEL FINE-TUNING...")    
         os.makedirs(f"{OUTPUT_DIR}/checkpoints", exist_ok=True)
-        torch.backends.cudnn.benchmark = True
+
+        # For Experiment reproducibility
+        torch.manual_seed(RANDOM_SEED)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
                 
         train_ds = Train_DataLoader(directory=f"{EXP_DIR}/train", classes=list(CLASSES_DATA.keys()), batch_size=96, img_crop_size=CROP_SIZE, mult_factor=TRAIN_DL_MF, weighted_sampling=True, mean=mean_, std=std_, shuffle=True)
         val_ds = Test_DataLoader(directory=f"{EXP_DIR}/val", classes=list(CLASSES_DATA.keys()), batch_size=96, img_crop_size=CROP_SIZE, mean=mean_, std=std_)
         tds, t_dl = train_ds.load_data()
         vds, v_dl = val_ds.load_data()
 
-        model, last_cp = load_model(MODEL_TYPE, len(CLASSES_DATA), FT_MODE, MODEL_PATH, "train", TEST_ID, EXP_METADATA, DEVICE)
+        model, last_cp = load_model(MODEL_TYPE, len(CLASSES_DATA), FT_MODE, CP_BASE, "train", TEST_ID, EXP_METADATA, DEVICE)
         if "EPOCHS_COMPLETED" in EXP_METADATA:
             epochs_completed = EXP_METADATA["EPOCHS_COMPLETED"]
             EPOCHS = EPOCHS - epochs_completed
@@ -143,7 +148,7 @@ if __name__ == '__main__':
         for metric in ["loss", "accuracy"]: plot_metric(metric, OUTPUT_DIR, TEST_ID)
         
         cp_to_test = f"{OUTPUT_DIR}/checkpoints/Test_{TEST_ID}_MLC_val_best_model.pth"
-        model, _ = load_model(MODEL_TYPE, len(CLASSES_DATA), "frozen", MODEL_PATH, "test", TEST_ID, EXP_METADATA, DEVICE)
+        model, _ = load_model(MODEL_TYPE, len(CLASSES_DATA), "frozen", CP_BASE, "test", TEST_ID, EXP_METADATA, DEVICE)
 
         mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}")
         dl = Test_DataLoader(directory=f"{EXP_DIR}/test", classes=list(CLASSES_DATA.keys()), batch_size=TEST_N_CROPS, img_crop_size=CROP_SIZE, mean=mean_, std=std_)

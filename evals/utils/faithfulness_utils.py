@@ -1,7 +1,7 @@
 import os, torch
 from sklearn.metrics import accuracy_score
 
-from utils import load_metadata, get_test_instance_patterns
+from utils import load_metadata, get_test_instance_patterns, get_model_base_checkpoint
 
 from xai.maskers.image_masker import SaliencyMasker, RandomMasker
 
@@ -61,7 +61,7 @@ def mask_test_instances(instances, paths, test_id, exp_dir, mask_rate, mask_mode
 
 def test_model(model_type, test_id, classes, xai_algorithm, mask_rate, mask_mode):
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    CP_BASE = f"{CLASSIFIERS_ROOT}/classifier_{model_type}/cp/Test_3_TL_val_best_model.pth"
+    CP_BASE = get_model_base_checkpoint(model_type)
     
     model, _ = load_model(model_type, len(classes), "frozen", CP_BASE, "test", test_id, None, DEVICE)
     

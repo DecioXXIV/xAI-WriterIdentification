@@ -1,6 +1,17 @@
 import json
+from argparse import ArgumentTypeError
 
 LOG_ROOT = "./log"
+CLASSIFIERS_ROOT = "./classifiers"
+
+### ################## ###
+### PARAMETER HANDLING ###
+### ################## ###
+def str2bool(value):
+    if isinstance(value, bool): return value
+    if value.lower() in ('yes', 'true', 't', 'y', '1'): return True
+    elif value.lower() in ('no', 'false', 'f', 'n', '0'): return False
+    else: raise ArgumentTypeError("Boolean value expected (true/false).")
 
 ### ################# ###
 ### METADATA HANDLING ###
@@ -46,3 +57,11 @@ def get_vert_hor_cuts(dataset):
     if dataset == "VatLat653": vert_cuts, hor_cuts = 1, 1
     
     return vert_cuts, hor_cuts
+
+### ######################### ###
+### MODEL CHECKPOINT HANDLING ###
+### ######################### ###
+def get_model_base_checkpoint(model_type):
+    if model_type == "ResNet18":
+        return f"{CLASSIFIERS_ROOT}/classifier_{model_type}/cp/Test_3_TL_val_best_model.pth"
+    

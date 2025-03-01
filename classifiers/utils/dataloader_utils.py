@@ -81,17 +81,16 @@ class AddGaussianNoise(object):
 
 ### NRandomCrop ###
 class NRandomCrop(object):
-    def __init__(self, crop_size, number, random_seed=None):
+    def __init__(self, crop_size, number, random_seed=24):
         if isinstance(crop_size, numbers.Number): self.crop_size = (int(crop_size), int(crop_size))
         else: self.crop_size = crop_size
         self.number = number
-        if random_seed is None: self.random_seed = np.random.randint(0, 1000)
-        else: self.random_seed = random_seed
+        self.random_seed = random_seed
 
     def __call__(self, img):
         return n_random_crops(img, self.number, self.crop_size, self.random_seed)
 
-def n_random_crops(img, number, crop_size, random_seed):
+def n_random_crops(img, number, crop_size, random_seed=24):
     crops = list()
     img_w, img_h = img.size
     crop_w, crop_h = crop_size
@@ -251,7 +250,7 @@ class Test_DataLoader(Base_DataLoader):
         return dataset, loader
 
 class Confidence_Test_DataLoader(Test_DataLoader):
-    def __init__(self, directory, classes, batch_size, img_crop_size, mode, mult_factor=1, n_pair_test_crops=250, random_seed=None, mean=[0, 0, 0], std=[1, 1, 1]):
+    def __init__(self, directory, classes, batch_size, img_crop_size, mode, mult_factor=1, n_pair_test_crops=250, random_seed=24, mean=[0, 0, 0], std=[1, 1, 1]):
         super().__init__(directory, classes, batch_size, img_crop_size, mean, std)
         self.mode = mode
         self.mult_factor = mult_factor
@@ -273,7 +272,7 @@ class Confidence_Test_DataLoader(Test_DataLoader):
         if self.mode == "random": return pair_test_random_transforms
         
 class Faithfulness_Test_DataLoader(Test_DataLoader):
-    def __init__(self, directory, classes, batch_size, img_crop_size, n_pair_test_crops=250, random_seed=None, mean=[0, 0, 0], std=[1, 1, 1]):
+    def __init__(self, directory, classes, batch_size, img_crop_size, n_pair_test_crops=250, random_seed=24, mean=[0, 0, 0], std=[1, 1, 1]):
         super().__init__(directory, classes, batch_size, img_crop_size, mean, std)
         self.n_pair_test_crops = n_pair_test_crops
         self.random_seed = random_seed
