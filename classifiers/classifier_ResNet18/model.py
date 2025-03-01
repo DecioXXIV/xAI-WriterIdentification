@@ -38,25 +38,31 @@ def load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_met
     last_cp = None
     
     if phase == "train":
+        print("'train' Phase")
         if "refined" in test_id:
             base_id, _ = test_id.split(':')
             last_cp_path = f"{CLASSIFIERS_ROOT}/classifier_ResNet18/tests/{base_id}/output/checkpoints/Test_{base_id}_MLC_val_best_model.pth"
             last_cp = torch.load(last_cp_path)
             model.load_state_dict(last_cp['model_state_dict'])
+            
+            print(f"'{test_id}' is a 'refined' experiment: the Fine-Tuning will start from the model already fine-tuned for '{base_id}'")
         
         if "EPOCHS_COMPLETED" in exp_metadata:
             epochs = exp_metadata["FINE_TUNING_HP"]["total_epochs"]
             epochs_completed = exp_metadata["EPOCHS_COMPLETED"]
             epochs_to_do = epochs - epochs_completed
-            print(f"{epochs_completed} epochs have already been completed: the Fine-Tuning process will be ended with the remaining {epochs_to_do} epochs")
             last_cp_path = f"{output_dir}/checkpoints/Test_{test_id}_MLC_last_checkpoint.pth"
             last_cp = torch.load(last_cp_path)
             model.load_state_dict(last_cp['model_state_dict'])
+
+            print(f"Fine-Tuning process for '{test_id}' has been somehow interrupted before its ending")
+            print(f"{epochs_completed} epochs have already been completed: the Fine-Tuning process will be ended with the remaining {epochs_to_do} epochs")
     
     if phase == "test":
         cp_to_test = f"{output_dir}/checkpoints/Test_{test_id}_MLC_val_best_model.pth"
         model.load_state_dict(torch.load(cp_to_test)['model_state_dict'])
         model.eval()
+        print("'test' Phase: the Model has been set-up for Testing phase")
     
     return model.to(device), last_cp
 
