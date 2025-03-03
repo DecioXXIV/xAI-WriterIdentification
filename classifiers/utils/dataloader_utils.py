@@ -100,7 +100,7 @@ def n_random_crops(img, number, crop_size, random_seed=24):
     tops = np.random.randint(low=0, high=img_h - crop_h + 1, size=number).tolist()
     
     for i in range(0, number):
-        crop = img.crop((lefts[i], tops[i], lefts[i] + crop_w + 1, tops[i] + crop_h + 1))
+        crop = img.crop((lefts[i], tops[i], lefts[i] + crop_w, tops[i] + crop_h))
         crops.append(crop)
     
     return crops
