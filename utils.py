@@ -13,6 +13,13 @@ def str2bool(value):
     elif value.lower() in ('no', 'false', 'f', 'n', '0'): return False
     else: raise ArgumentTypeError("Boolean value expected (true/false).")
 
+def xaiaug2str(value):
+    if value.lower() in ("pi", "protect and inform", "protect_inform"): return "pi"
+    elif value.lower() in ("lr", "lime reds", "lime_reds"): return "lr"
+    elif value.lower() in ("wo", "world opening", "world_opening"): return "wo"
+    elif value.lower() in ("rand", "random"): return "rand"
+    else: raise ArgumentTypeError("Unrecognized XAI Augmentation Mode")
+
 ### ################# ###
 ### METADATA HANDLING ###
 ### ################# ###
