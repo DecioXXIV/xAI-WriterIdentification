@@ -93,11 +93,9 @@ if __name__ == '__main__':
                 if c_type == "base": class_source = f"{SOURCE_DATA_DIR}/{c}"
                 else: class_source = f"{SOURCE_DATA_DIR}/{c}-{BASE_ID}_NN_{c_type}"
         
-                extract_crops_parallel(DATASET, EXP_DIR, class_source, c, TRAIN_REPLICAS, CROP_SIZE, TRAIN_DL_MF, TEST_N_CROPS, RANDOM_SEED)
+                extract_crops_parallel(DATASET, EXP_DIR, class_source, c, TRAIN_REPLICAS, CROP_SIZE, TRAIN_DL_MF, TEST_N_CROPS, random_seed=24)
                 
-                if "augmented" or "refined" in TEST_ID:
-                    BASE_ID, _ = TEST_ID.split(':')
-                    retrieve_augmentation_crops(TEST_ID, BASE_ID, MODEL_TYPE, c)
+                if "augmented" in TEST_ID: retrieve_augmentation_crops(TEST_ID, MODEL_TYPE, c)
             
                 class_n_train_crops = len(os.listdir(f"{EXP_DIR}/train/{c}"))
                 print(f"Class {c} -> Train Instances ({CROP_SIZE}x{CROP_SIZE}-sized Crops): {class_n_train_crops}")
