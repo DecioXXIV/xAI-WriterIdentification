@@ -12,7 +12,6 @@ from captum._utils.models.linear_model import SkLearnLinearRegression, SkLearnRi
 from captum.attr import visualization as viz
 from typing import Tuple
 
-from xai.utils.explanations_utils import reduce_scores, assign_attr_scores_to_mask, custom_visualization, get_rois, return_erased_crops
 from xai.utils.image_utils import create_image_grid, apply_transforms_crops, load_rgb_mean_std
 
 XAI_ROOT = "./xai"
@@ -98,7 +97,9 @@ class LimeBaseExplainer:
             with open(f"{output_dir}/{scores_name}", "wb") as handle:
                 pickle.dump(scores, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
-    def visualize_superpixel_scores_outcomes(self, base_img, base_mask, instance_name, reduction_method, min_eval):  
+    def visualize_superpixel_scores_outcomes(self, base_img, base_mask, instance_name, reduction_method, min_eval):
+        from xai.utils.explanations_utils import reduce_scores, assign_attr_scores_to_mask, custom_visualization, get_rois
+          
         instance_name = instance_name[:-4]
         scores_name = f"{instance_name}_scores.pkl"
         output_dir = f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.dir_name}/{instance_name}"
@@ -116,6 +117,8 @@ class LimeBaseExplainer:
             print("Error in ROIs visualization")
 
     def compute_masked_patches_explanation(self, base_img, base_mask, instance_name, label_idx, crops_bbxs, reduction_method, min_eval, num_samples_for_baseline=10, save_crops=False):
+        from xai.utils.explanations_utils import reduce_scores, assign_attr_scores_to_mask, custom_visualization, return_erased_crops
+        
         instance_name = instance_name[:-4]
         scores_name = f"{instance_name}_scores.pkl"
         output_dir = f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.dir_name}/{instance_name}"
