@@ -94,7 +94,13 @@ def set_optimizer(optim_type, lr_, model, cp=None):
             lr = lr_, betas = [0.9, 0.999], weight_decay = 0.025) 
     elif optim_type == 'adamw-5%':
         optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.05) 
+            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.05)
+    elif optim_type == 'adamw-10%':
+        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.10)
+    elif optim_type == 'adamw-25%':
+        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.25)
     else:
         raise Exception('The selected optimization type is not available.')
     
