@@ -92,7 +92,7 @@ if __name__ == '__main__':
     if DEVICE == "cuda": print("Device:", torch.cuda.get_device_name(0))
     else: print("Device: CPU")
     
-    model, _ = load_model(MODEL_TYPE, num_classes, cp_base, TEST_ID, EXP_METADATA, DEVICE)
+    model, _ = load_model(MODEL_TYPE, num_classes, "frozen", cp_base, "test", TEST_ID, EXP_METADATA, DEVICE)
     print("Model Loaded!")
     print("Classes:", classes)
     
