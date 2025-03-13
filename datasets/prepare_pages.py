@@ -2,7 +2,7 @@ import os
 from argparse import ArgumentParser
 from datetime import datetime
 
-from utils import load_metadata, save_metadata
+from utils import load_metadata, save_metadata, get_page_dimensions
 
 from datasets.utils import split_full_instances, copy_not_masked_test_instances
 
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     CLASSES_DATA = EXP_METADATA["CLASSES"]
     MODEL_TYPE = EXP_METADATA["MODEL_TYPE"]
 
-    FINAL_WIDTH, FINAL_HEIGHT = 902, 1279
+    FINAL_WIDTH, FINAL_HEIGHT = get_page_dimensions(DATASET)
     
     os.makedirs(f"{DATASET_ROOT}/{DATASET}/processed", exist_ok = True)
     

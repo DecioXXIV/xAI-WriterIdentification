@@ -1,7 +1,8 @@
-import json
+import json, os
 from argparse import ArgumentTypeError
 
 LOG_ROOT = "./log"
+DATASETS_ROOT = "./datasets"
 CLASSIFIERS_ROOT = "./classifiers"
 
 ### ################## ###
@@ -19,6 +20,16 @@ def xaiaug2str(value):
     elif value.lower() in ("wo", "world opening", "world_opening"): return "wo"
     elif value.lower() in ("rand", "random"): return "rand"
     else: raise ArgumentTypeError("Unrecognized XAI Augmentation Mode")
+
+def datasets2hi(value):
+    valid_datasets = os.listdir(DATASETS_ROOT)
+    valid_datasets.remove("__pycache__")
+    valid_datasets.remove("__init__.py")
+    valid_datasets.remove("prepare_pages.py")
+    valid_datasets.remove("utils.py")
+    
+    if value in valid_datasets: return value
+    else: raise ArgumentTypeError("Unrecognized Dataset")
 
 ### ################# ###
 ### METADATA HANDLING ###
@@ -42,7 +53,9 @@ def get_train_instance_patterns():
     train_instance_patterns = {
         "CEDAR_Letter": lambda f: 'c' not in f,
         "CVL": lambda f: "-3" not in f and "-7" not in f,
-        "VatLat653": lambda f: 'a' in f
+        "VatLat653": lambda f: 'a' in f,
+        "VatLat5951": lambda f: 'a' in f,
+        "VatLat5951b": lambda f: 'a' in f
     }
     
     return train_instance_patterns
@@ -51,7 +64,9 @@ def get_test_instance_patterns():
     test_instance_patterns = {
         "CEDAR_Letter": lambda f: 'c' in f,
         "CVL": lambda f: "-3" in f or "-7" in f,
-        "VatLat653": lambda f: 't' in f
+        "VatLat653": lambda f: 't' in f,
+        "VatLat5951": lambda f: 't' in f,
+        "VatLat5951b": lambda f: 't' in f
     }
     
     return test_instance_patterns
@@ -62,8 +77,21 @@ def get_vert_hor_cuts(dataset):
     if dataset == "CEDAR_Letter": vert_cuts, hor_cuts = 7, 4
     if dataset == "CVL": vert_cuts, hor_cuts = 5, 2
     if dataset == "VatLat653": vert_cuts, hor_cuts = 1, 1
+    if dataset == "VatLat5951": vert_cuts, hor_cuts = 1, 1
+    if dataset == "VatLat5951b": vert_cuts, hor_cuts = 1, 1
     
     return vert_cuts, hor_cuts
+
+def get_page_dimensions(dataset):
+    final_width, final_height = None, None
+    
+    if dataset == "CEDAR_Letter": final_width, final_height = 902, 1279
+    if dataset == "CVL": final_width, final_height = 902, 1279
+    if dataset == "VatLat653": final_width, final_height = 902, 1279
+    if dataset == "VatLat5951": final_width, final_height = 1099, 1658
+    if dataset == "VatLat5951b": final_width, final_height = 682, 1043
+    
+    return final_width, final_height
 
 ### ######################### ###
 ### MODEL CHECKPOINT HANDLING ###
