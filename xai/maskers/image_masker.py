@@ -9,7 +9,7 @@ from torchvision import transforms as T
 
 from xai.utils.explanations_utils import reduce_scores
 
-from utils import get_vert_hor_cuts, save_metadata, load_metadata
+from utils import get_vert_hor_cuts, save_metadata, load_metadata, get_page_dimensions
 
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
@@ -18,10 +18,10 @@ EVAL_ROOT = "./evals"
 
 ### Superclass ###
 class ImageMasker:    
-    def __init__(self, inst_set: str, instances: list, paths: list, test_id: str,
-                exp_dir: str, mask_rate: float, mask_mode: str,
-                patch_width: int, patch_height: int,
-                xai_algorithm: str, xai_mode: str, exp_metadata: dict):
+    def __init__(self, dataset:str, inst_set: str, instances: list, paths: list, 
+                test_id: str, exp_dir: str, mask_rate: float, mask_mode: str,
+                patch_width: int, patch_height: int, xai_algorithm: str, xai_mode: str, exp_metadata: dict):
+        self.dataset = dataset
         self.inst_set = inst_set
         self.instances = instances
         self.paths = paths
@@ -35,6 +35,7 @@ class ImageMasker:
         self.exp_metadata = exp_metadata
         
         self.full_img_width, self.full_img_height = 0, 0
+        self.final_width, self.final_height = get_page_dimensions(self.dataset)
         self.v_overlap, self.h_overlap = 0, 0
         
         with open(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{exp_dir}/rgb_train_stats.pkl", "rb") as f:
@@ -49,10 +50,10 @@ class ImageMasker:
         filename_parts = instance_name.split("_")
         h_cut, v_cut = int(filename_parts[1]), int(filename_parts[2])
         
-        left_b = v_cut * (902 - self.h_overlap)
-        top_b = h_cut * (1279 - self.v_overlap)
+        left_b = v_cut * (self.final_width - self.h_overlap)
+        top_b = h_cut * (self.final_height - self.v_overlap)
 
-        mask = Image.open(f"{XAI_ROOT}/def_mask_{self.patch_width}x{self.patch_height}.png")
+        mask = Image.open(f"{XAI_ROOT}/masks/{self.dataset}_mask_{self.patch_width}x{self.patch_height}.png")
         mask_array = np.array(mask)
         
         with open(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}/{instance_name}/{instance_name}_scores.pkl", "rb") as f: 
@@ -127,10 +128,9 @@ class SaliencyMasker(ImageMasker):
         self.full_img_width, self.full_img_height = full_img.size
         full_img_name, full_img_type = full_img_name[:-4], full_img_name[-4:]
         
-        FINAL_WIDTH, FINAL_HEIGHT = 902, 1279
         vert_cuts, hor_cuts = get_vert_hor_cuts(self.exp_metadata["DATASET"])
-        self.h_overlap = max(1, int((((vert_cuts) * FINAL_WIDTH) - self.full_img_width) / vert_cuts))
-        self.v_overlap = max(1, int((((hor_cuts) * FINAL_HEIGHT) - self.full_img_height) / hor_cuts)) 
+        self.h_overlap = max(1, int((((vert_cuts) * self.final_width) - self.full_img_width) / vert_cuts))
+        self.v_overlap = max(1, int((((hor_cuts) * self.final_height) - self.full_img_height) / hor_cuts))  
         
         ROOT_OF_MASKINGS = f"{XAI_ROOT}/mask_images/{self.exp_dir}"
         self.INSTANCE_DIR = f"{ROOT_OF_MASKINGS}/{full_img_name}"
@@ -236,10 +236,9 @@ class RandomMasker(ImageMasker):
         self.full_img_width, self.full_img_height = full_img.size
         full_img_name, full_img_type = full_img_name[:-4], full_img_name[-4:]
         
-        FINAL_WIDTH, FINAL_HEIGHT = 902, 1279
         vert_cuts, hor_cuts = get_vert_hor_cuts(self.exp_metadata["DATASET"])
-        self.h_overlap = max(1, int((((vert_cuts) * FINAL_WIDTH) - self.full_img_width) / vert_cuts))
-        self.v_overlap = max(1, int((((hor_cuts) * FINAL_HEIGHT) - self.full_img_height) / hor_cuts)) 
+        self.h_overlap = max(1, int((((vert_cuts) * self.final_width) - self.full_img_width) / vert_cuts))
+        self.v_overlap = max(1, int((((hor_cuts) * self.final_height) - self.full_img_height) / hor_cuts)) 
         
         ROOT_OF_MASKINGS = f"{XAI_ROOT}/mask_images/{self.exp_dir}"
         self.INSTANCE_DIR = f"{ROOT_OF_MASKINGS}/{full_img_name}"

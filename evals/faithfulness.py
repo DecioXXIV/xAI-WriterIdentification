@@ -63,7 +63,7 @@ if __name__ == '__main__':
                 os.system(f"cp {src} {dest}")
             mask_condition = True
         
-        else: mask_condition = mask_test_instances(instances, paths, TEST_ID, EXP_DIR, mask_rate, MASK_MODE, PATCH_WIDTH, PATCH_HEIGHT, XAI_ALGORITHM, EXP_METADATA)
+        else: mask_condition = mask_test_instances(instances, DATASET, paths, TEST_ID, EXP_DIR, mask_rate, MASK_MODE, PATCH_WIDTH, PATCH_HEIGHT, XAI_ALGORITHM, EXP_METADATA)
         
         if mask_condition:
             mask_rate_performances = np.zeros(TEST_ITERATIONS)

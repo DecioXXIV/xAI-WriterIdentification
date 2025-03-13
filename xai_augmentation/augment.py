@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
     for c in CLASSES:
         xai_and_random_augmentations = augmentations[c_to_idx[str(c)]]
-        extract_augmented_crops(MODE, root_dir, XAI_EXP_DIR, c, c_to_idx, mean_class_vectors, xai_and_random_augmentations, CROP_SIZE, P_WIDTH, P_HEIGHT, mean_, std_, pca, model, DEVICE)
+        extract_augmented_crops(MODE, root_dir, XAI_EXP_DIR, DATASET, c, c_to_idx, mean_class_vectors, xai_and_random_augmentations, CROP_SIZE, P_WIDTH, P_HEIGHT, mean_, std_, pca, model, DEVICE)
         
     xai_aug_metadata_entry = f"XAI_AUGMENTATION_{MODE}_BALANCED" if KEEP_BALANCED else f"XAI_AUGMENTATION_{MODE}"
     EXP_METADATA[xai_aug_metadata_entry] = dict()

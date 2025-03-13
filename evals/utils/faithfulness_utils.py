@@ -31,16 +31,16 @@ def get_test_instances_to_mask(dataset, classes):
     
     return instances, instance_full_paths
 
-def mask_test_instances(instances, paths, test_id, exp_dir, mask_rate, mask_mode, patch_width, patch_height, xai_algorithm, exp_metadata):
+def mask_test_instances(instances, dataset, paths, test_id, exp_dir, mask_rate, mask_mode, patch_width, patch_height, xai_algorithm, exp_metadata):
     masker = None
     
     if mask_mode == "saliency":
-        masker = SaliencyMasker(inst_set="test", instances=instances, paths=paths, test_id=test_id,
+        masker = SaliencyMasker(dataset=dataset, inst_set="test", instances=instances, paths=paths, test_id=test_id,
             exp_dir=exp_dir, mask_rate=mask_rate, mask_mode=mask_mode,
             patch_width=patch_width, patch_height=patch_height,
             xai_algorithm=xai_algorithm, xai_mode="base", exp_metadata=exp_metadata)
     elif mask_mode == "random":
-        masker = RandomMasker(inst_set="test", instances=instances, paths=paths, test_id=test_id,
+        masker = RandomMasker(dataset=dataset, inst_set="test", instances=instances, paths=paths, test_id=test_id,
             exp_dir=exp_dir, mask_rate=mask_rate, mask_mode=mask_mode,
             patch_width=patch_width, patch_height=patch_height,
             xai_algorithm=xai_algorithm, xai_mode="base", exp_metadata=exp_metadata)

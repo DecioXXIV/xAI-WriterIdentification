@@ -48,6 +48,7 @@ if __name__ == '__main__':
     LIME_ITERS = args.lime_iters
     REMOVE_PATCHES = args.remove_patches
 
+    DATASET = EXP_METADATA["DATASET"]
     MODEL_TYPE = EXP_METADATA["MODEL_TYPE"]
     CLASSES_DATA = EXP_METADATA["CLASSES"]
     classes = list(CLASSES_DATA.keys())
@@ -131,7 +132,7 @@ if __name__ == '__main__':
     OVERLAP = CROP_SIZE - 25
 
     for instance_name, label in zip(instances, labels):
-        explain_instance(instance_name, label, explainer, CROP_SIZE, PATCH_WIDTH, PATCH_HEIGHT, OVERLAP, LIME_ITERS, XAI_METADATA, XAI_METADATA_PATH, REMOVE_PATCHES)
+        explain_instance(DATASET, instance_name, label, explainer, CROP_SIZE, PATCH_WIDTH, PATCH_HEIGHT, OVERLAP, LIME_ITERS, XAI_METADATA, XAI_METADATA_PATH, REMOVE_PATCHES)
     
     os.system(f"cp {CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}/rgb_train_stats.pkl {XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
     EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["XAI_END_TIMESTAMP"] = str(datetime.now())

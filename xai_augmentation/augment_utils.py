@@ -6,7 +6,7 @@ from PIL import Image
 from tqdm import tqdm
 from sklearn.decomposition import PCA
 
-from utils import get_train_instance_patterns
+from utils import get_train_instance_patterns, get_page_dimensions
 
 from classifiers.utils.testing_utils import process_test_set
 
@@ -134,9 +134,11 @@ def produce_random_augmented_crops(root_dir, c, crop_size, random_augmentations)
             crop = img.crop((left, top, right, bottom))
             crop.save(f"{root_dir}/crops_for_augmentation/{c}/{k[:-4]}_random_crop{i}{k[-4:]}")
             
-def get_crop_from_patch(crop_size, patch_width, patch_height, left_b_patch, top_b_patch, right_b_patch, bottom_b_patch):
+def get_crop_from_patch(dataset, crop_size, patch_width, patch_height, left_b_patch, top_b_patch, right_b_patch, bottom_b_patch):
     left_b_crop, top_b_crop, right_b_crop, bottom_b_crop = 0, 0, 0, 0
     left_b_crop_to_pad, top_b_crop_to_pad, right_b_crop_to_pad, bottom_b_crop_to_pad = 0, 0, 0, 0
+    
+    final_width, final_height = get_page_dimensions(dataset)
     
     crop_left_top_semisize, crop_right_bottom_semisize = 0, 0
     if crop_size % 2 == 0: crop_left_top_semisize, crop_right_bottom_semisize = int(crop_size/2), int(crop_size/2)
@@ -161,21 +163,21 @@ def get_crop_from_patch(crop_size, patch_width, patch_height, left_b_patch, top_
     if top_b_patch - top_difference >= 0: top_b_crop = top_b_patch - top_difference
     else: top_b_crop_to_pad = top_difference - top_b_patch
     
-    if right_b_patch + right_difference <= 902: right_b_crop = right_b_patch + right_difference
+    if right_b_patch + right_difference <= final_width: right_b_crop = right_b_patch + right_difference
     else: 
-        right_b_crop = 902
-        right_b_crop_to_pad = right_difference - (902 - right_b_patch)
+        right_b_crop = final_width
+        right_b_crop_to_pad = right_difference - (final_width - right_b_patch)
     
-    if bottom_b_patch + bottom_difference <= 1279: bottom_b_crop = bottom_b_patch + bottom_difference
+    if bottom_b_patch + bottom_difference <= final_height: bottom_b_crop = bottom_b_patch + bottom_difference
     else: 
-        bottom_b_crop = 1279
-        bottom_b_crop_to_pad = bottom_difference - (1279 - bottom_b_patch)
+        bottom_b_crop = final_height
+        bottom_b_crop_to_pad = bottom_difference - (final_height - bottom_b_patch)
     
     return (left_b_crop, top_b_crop, right_b_crop, bottom_b_crop), (left_b_crop_to_pad, top_b_crop_to_pad, right_b_crop_to_pad, bottom_b_crop_to_pad)
 
-def extract_augmented_crops_protect_inform(root_dir, xai_exp_dir, c, c_to_idx, mean_vectors, crop_size, patch_width, patch_height, mean_, std_, pca, model, device):  
+def extract_augmented_crops_protect_inform(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, patch_width, patch_height, mean_, std_, pca, model, device):  
     instance_names = os.listdir(f"{root_dir}/train_instances/{c}")
-    mask = Image.open(f"{XAI_ROOT}/def_mask_{patch_width}x{patch_height}.png")
+    mask = Image.open(f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}.png")
     mask_array = np.array(mask)
     label = c_to_idx[str(c)]
     mean_class_vector = mean_vectors[c_to_idx[str(c)]]
@@ -202,7 +204,7 @@ def extract_augmented_crops_protect_inform(root_dir, xai_exp_dir, c, c_to_idx, m
                         continue
                     
                     right_b_patch, bottom_b_patch = right_b_patch + 1, bottom_b_patch + 1
-                    crop_coordinates, pad_coordinates = get_crop_from_patch(crop_size, patch_width, patch_height, left_b_patch, top_b_patch, right_b_patch, bottom_b_patch)
+                    crop_coordinates, pad_coordinates = get_crop_from_patch(dataset, crop_size, patch_width, patch_height, left_b_patch, top_b_patch, right_b_patch, bottom_b_patch)
                     
                     crop = img.crop(crop_coordinates)
                     mean_int = tuple(int(m * 255) for m in mean_)
@@ -232,9 +234,9 @@ def extract_augmented_crops_protect_inform(root_dir, xai_exp_dir, c, c_to_idx, m
     
     return results
 
-def extract_augmented_crops_lime_reds(root_dir, xai_exp_dir, c, crop_size, patch_width, patch_height):    
+def extract_augmented_crops_lime_reds(root_dir, xai_exp_dir, dataset, c, crop_size, patch_width, patch_height):    
     instance_names = os.listdir(f"{root_dir}/train_instances/{c}")
-    mask = Image.open(f"{XAI_ROOT}/def_mask_{patch_width}x{patch_height}.png")
+    mask = Image.open(f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}.png")
     mask_array = np.array(mask)
 
     results = []
@@ -259,7 +261,7 @@ def extract_augmented_crops_lime_reds(root_dir, xai_exp_dir, c, crop_size, patch
                         continue
                     
                     right_b_patch, bottom_b_patch = right_b_patch + 1, bottom_b_patch + 1
-                    crop_coordinates, pad_coordinates = get_crop_from_patch(crop_size, patch_width, patch_height, left_b_patch, top_b_patch, right_b_patch, bottom_b_patch)
+                    crop_coordinates, pad_coordinates = get_crop_from_patch(dataset, crop_size, patch_width, patch_height, left_b_patch, top_b_patch, right_b_patch, bottom_b_patch)
                     
                     left_b_crop, top_b_crop, right_b_crop, bottom_b_crop = crop_coordinates
                     mask_crop = mask_array[left_b_crop:right_b_crop+1, top_b_crop:bottom_b_crop+1]
@@ -285,9 +287,9 @@ def extract_augmented_crops_lime_reds(root_dir, xai_exp_dir, c, crop_size, patch
     
     return results
 
-def extract_augmented_crops_world_opening(root_dir, xai_exp_dir, c, c_to_idx, mean_vectors, crop_size, patch_width, patch_height, mean_, std_, pca, model, device):
+def extract_augmented_crops_world_opening(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, patch_width, patch_height, mean_, std_, pca, model, device):
     instance_names = os.listdir(f"{root_dir}/train_instances/{c}")
-    mask = Image.open(f"{XAI_ROOT}/def_mask_{patch_width}x{patch_height}.png")
+    mask = Image.open(f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}.png")
     mask_array = np.array(mask)
     label = c_to_idx[str(c)]
 
@@ -313,7 +315,7 @@ def extract_augmented_crops_world_opening(root_dir, xai_exp_dir, c, c_to_idx, me
                         continue
                     
                     right_b_patch, bottom_b_patch = right_b_patch + 1, bottom_b_patch + 1
-                    crop_coordinates, pad_coordinates = get_crop_from_patch(crop_size, patch_width, patch_height, left_b_patch, top_b_patch, right_b_patch, bottom_b_patch)
+                    crop_coordinates, pad_coordinates = get_crop_from_patch(dataset, crop_size, patch_width, patch_height, left_b_patch, top_b_patch, right_b_patch, bottom_b_patch)
                     
                     crop = img.crop(crop_coordinates)
                     mean_int = tuple(int(m * 255) for m in mean_)
@@ -343,16 +345,16 @@ def extract_augmented_crops_world_opening(root_dir, xai_exp_dir, c, c_to_idx, me
     
     return results
         
-def extract_augmented_crops(mode, root_dir, xai_exp_dir, c, c_to_idx, mean_vectors, xai_and_random_augmentations, crop_size, patch_width, patch_height, mean_, std_, pca, model, device):
+def extract_augmented_crops(mode, root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, xai_and_random_augmentations, crop_size, patch_width, patch_height, mean_, std_, pca, model, device):
     os.makedirs(f"{root_dir}/crops_for_augmentation/{c}", exist_ok=True)
     xai_augmentations, random_augmentations = xai_and_random_augmentations
     
     if xai_augmentations > 0:
         print(f"Extracting {xai_augmentations} XAI-Augmentation Crops for class {c}")
         results = None
-        if mode == "pi": results = extract_augmented_crops_protect_inform(root_dir, xai_exp_dir, c, c_to_idx, mean_vectors, crop_size, patch_width, patch_height, mean_, std_, pca, model, device)
-        elif mode == "lr": results = extract_augmented_crops_lime_reds(root_dir, xai_exp_dir, c, crop_size, patch_width, patch_height)
-        elif mode == "wo": results = extract_augmented_crops_world_opening(root_dir, xai_exp_dir, c, c_to_idx, mean_vectors, crop_size, patch_width, patch_height, mean_, std_, pca, model, device)
+        if mode == "pi": results = extract_augmented_crops_protect_inform(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, patch_width, patch_height, mean_, std_, pca, model, device)
+        elif mode == "lr": results = extract_augmented_crops_lime_reds(root_dir, xai_exp_dir, dataset, c, crop_size, patch_width, patch_height)
+        elif mode == "wo": results = extract_augmented_crops_world_opening(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, patch_width, patch_height, mean_, std_, pca, model, device)
     
         results = sorted(results, key=lambda x: x['utility'], reverse=True)
         with open(f"{root_dir}/crops_for_augmentation/{c}_crops_for_augmentations.json", "w") as f:

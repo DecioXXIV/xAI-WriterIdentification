@@ -50,6 +50,7 @@ def create_image_grid(
     return grid_dict, num_cols, num_rows
 
 def generate_instance_mask(
+        dataset: str,
         inst_width: int,
         inst_height: int,
         patch_width: int,
@@ -70,7 +71,8 @@ def generate_instance_mask(
     mask = mask_img.crop((left, top, right, bottom))
     mask = mask.crop((0, 0, inst_width, inst_height))
 
-    mask.save(f"{XAI_ROOT}/def_mask_{patch_width}x{patch_height}.png")
+    os.makedirs(f"{XAI_ROOT}/masks", exist_ok=True)
+    mask.save(f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}.png")
 
 def get_crops_bbxs(image, crop_width, crop_height):
     crop_bbxs = list()

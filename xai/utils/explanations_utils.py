@@ -9,7 +9,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from typing import Tuple
 from datetime import datetime
 
-from utils import get_train_instance_patterns, get_test_instance_patterns, save_metadata
+from utils import get_train_instance_patterns, get_test_instance_patterns, save_metadata, get_page_dimensions
 
 from xai.explainers.lime_base_explainer import LimeBaseExplainer
 from xai.utils.image_utils import generate_instance_mask, get_crops_bbxs
@@ -171,7 +171,7 @@ def setup_explainer(xai_algorithm, args, model_type, model, dir_name, mean, std,
     
     return explainer
 
-def explain_instance(instance_name, label, explainer, crop_size, patch_width, patch_height, overlap, lime_iters, xai_metadata, xai_metadata_path, remove_patches):
+def explain_instance(dataset, instance_name, label, explainer, crop_size, patch_width, patch_height, overlap, lime_iters, xai_metadata, xai_metadata_path, remove_patches):
     if instance_name in xai_metadata["INSTANCES"]:
         print(f"Skipping Instance '{instance_name}' with label '{label}': already explained!")
         os.system(f"rm {XAI_ROOT}/data/{instance_name}")
@@ -180,8 +180,10 @@ def explain_instance(instance_name, label, explainer, crop_size, patch_width, pa
     print(f"Processing Instance '{instance_name}' with label '{label}'")
     
     img_path = f"{XAI_ROOT}/data/{instance_name}"
-    mask_path = f"{XAI_ROOT}/def_mask_{patch_width}x{patch_height}.png"
-    if not os.path.exists(mask_path): generate_instance_mask(inst_width=902, inst_height=1279, patch_width=patch_width, patch_height=patch_height)
+    mask_path = f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}.png"
+    if not os.path.exists(mask_path): 
+        inst_width, inst_height = get_page_dimensions(dataset)
+        generate_instance_mask(dataset=dataset, inst_width=inst_width, inst_height=inst_height, patch_width=patch_width, patch_height=patch_height)
     img, mask = Image.open(img_path), Image.open(mask_path)
     
     explainer.compute_superpixel_scores(img, mask, instance_name, label, lime_iters, crop_size, overlap)

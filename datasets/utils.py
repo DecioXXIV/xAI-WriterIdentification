@@ -13,16 +13,14 @@ def split_full_instances(class_name, class_type, dataset, test_id, model_type, f
     Given a class and its 'class_type', processes and prepares its instances for the fine-tuning step.
     (final_width, final_height)-sized crops are extracted from each instance.
 
-    Standard: final_width = 902, final_height = 1279
-
     Args:
         class_name (str): Name of the class
         class_type (str): Type of the class, 'base' or 'masked_saliency/random_maskrate_xaialgorithm' (i.e.: 'masked_saliency_0.1_LimeBase')
         dataset (str): Dataset name
         test_id (str): Unique test identifier
         model_type (str): Model type used in the experiment
-        final_width (int): Desired width of the processed images (902)
-        final_height (int): Desired height of the processed images (1279)
+        final_width (int): Desired width of the processed images
+        final_height (int): Desired height of the processed images
     """
 
     # Set 'source' and 'destination' for the current class, basing on its 'class_type'

@@ -76,6 +76,8 @@ def pair_confidence_test(baseline_id, retrained_id, mode, mult_factors, iters):
 def pair_explanations_test(baseline_id, retrained_id, xai_algorithm):
     BASELINE_METADATA = load_metadata(f"{LOG_ROOT}/{baseline_id}-metadata.json")
     RETRAINED_METADATA = load_metadata(f"{LOG_ROOT}/{retrained_id}-metadata.json")
+    
+    DATASET = BASELINE_METADATA["DATASET"]
 
     B_EXP_DIR = BASELINE_METADATA[f"{xai_algorithm}_METADATA"]["DIR_NAME"]
     R_EXP_DIR = RETRAINED_METADATA[f"{xai_algorithm}_METADATA"]["DIR_NAME"]
@@ -97,7 +99,7 @@ def pair_explanations_test(baseline_id, retrained_id, xai_algorithm):
         with open(base_scores_path, "rb") as f: base_scores = pickle.load(f)
         with open(ret_scores_path, "rb") as f: ret_scores = pickle.load(f)
 
-        mask = Image.open(f"{XAI_ROOT}/def_mask_{PATCH_W}x{PATCH_H}.png")
+        mask = Image.open(f"{XAI_ROOT}/masks/{DATASET}_mask_{PATCH_W}x{PATCH_H}.png")
 
         base_scores_reduced, ret_scores_reduced = reduce_scores(mask, base_scores), reduce_scores(mask, ret_scores)
         b_mask_with_scores, r_mask_with_scores  = assign_attr_scores_to_mask(mask, base_scores_reduced), assign_attr_scores_to_mask(mask, ret_scores_reduced)
