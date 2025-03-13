@@ -250,11 +250,11 @@ class Test_DataLoader(Base_DataLoader):
         return dataset, loader
 
 class Confidence_Test_DataLoader(Test_DataLoader):
-    def __init__(self, directory, classes, batch_size, img_crop_size, mode, mult_factor=1, n_pair_test_crops=250, random_seed=24, mean=[0, 0, 0], std=[1, 1, 1]):
+    def __init__(self, directory, classes, batch_size, img_crop_size, mode, mult_factor=1, n_test_crops=100, random_seed=24, mean=[0, 0, 0], std=[1, 1, 1]):
         super().__init__(directory, classes, batch_size, img_crop_size, mean, std)
         self.mode = mode
         self.mult_factor = mult_factor
-        self.n_pair_test_crops = n_pair_test_crops
+        self.n_test_crops = n_test_crops
         self.random_seed = random_seed
     
     def compose_transform(self):
@@ -264,7 +264,7 @@ class Confidence_Test_DataLoader(Test_DataLoader):
         ])
     
         pair_test_random_transforms = T.Compose([
-            NRandomCrop(crop_size = self.img_crop_size, number = self.n_pair_test_crops, random_seed=self.random_seed),
+            NRandomCrop(crop_size = self.img_crop_size, number = self.n_test_crops, random_seed=self.random_seed),
             T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(crop)) for crop in crops]))
         ])
             
@@ -272,14 +272,14 @@ class Confidence_Test_DataLoader(Test_DataLoader):
         if self.mode == "random": return pair_test_random_transforms
         
 class Faithfulness_Test_DataLoader(Test_DataLoader):
-    def __init__(self, directory, classes, batch_size, img_crop_size, n_pair_test_crops=250, random_seed=24, mean=[0, 0, 0], std=[1, 1, 1]):
+    def __init__(self, directory, classes, batch_size, img_crop_size, n_test_crops=100, random_seed=24, mean=[0, 0, 0], std=[1, 1, 1]):
         super().__init__(directory, classes, batch_size, img_crop_size, mean, std)
-        self.n_pair_test_crops = n_pair_test_crops
+        self.n_test_crops = n_test_crops
         self.random_seed = random_seed
     
     def compose_transform(self):    
         transforms = T.Compose([
-            NRandomCrop(crop_size = self.img_crop_size, number = self.n_pair_test_crops, random_seed=self.random_seed),
+            NRandomCrop(crop_size = self.img_crop_size, number = self.n_test_crops, random_seed=self.random_seed),
             T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(crop)) for crop in crops]))
         ])
             

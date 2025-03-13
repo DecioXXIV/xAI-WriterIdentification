@@ -51,7 +51,7 @@ if __name__ == '__main__':
     TRAIN_REPLICAS = args.train_replicas
     TRAIN_DL_MF = args.train_dl_mf
     RANDOM_SEED = args.random_seed if args.random_seed is not None else np.random.randint(0, 10e6)
-    TEST_N_CROPS = 250
+    TEST_N_CROPS = 100
     EPOCHS = args.epochs
     FT_MODE = args.ft_mode
     
