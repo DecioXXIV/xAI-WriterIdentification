@@ -4,7 +4,7 @@ from datetime import datetime
 
 from utils import load_metadata, save_metadata, get_page_dimensions
 
-from datasets.utils import split_full_instances, copy_not_masked_test_instances
+from datasets.utils import produce_pages, copy_not_masked_test_instances
 
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
@@ -47,11 +47,12 @@ if __name__ == '__main__':
     
     # If the current experiment is "ret", retrieve the original 'test' instances first
     if RET_ID is not None:
+        print(f"'{TEST_ID}' is a 'ret' experiment: Training (masked) instances are already in the folder, ready to be prepared; Test (not-masked) instances need to be retrieved!")
         for c, c_type in CLASSES_DATA.items(): copy_not_masked_test_instances(c, c_type, DATASET, TEST_ID, MODEL_TYPE)
     
     # Process and extract sub-images for each class
     for c, c_type in CLASSES_DATA.items():
-        split_full_instances(c, c_type, DATASET, BASE_ID, MODEL_TYPE, FINAL_WIDTH, FINAL_HEIGHT)
+        produce_pages(c, c_type, DATASET, BASE_ID, MODEL_TYPE, FINAL_WIDTH, FINAL_HEIGHT)
     
     EXP_METADATA["DATA_PREP_TIMESTAMP"] = str(datetime.now())
     save_metadata(EXP_METADATA, EXP_METADATA_PATH)

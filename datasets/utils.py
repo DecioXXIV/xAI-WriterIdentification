@@ -8,7 +8,7 @@ from utils import get_vert_hor_cuts, get_test_instance_patterns
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
 
-def split_full_instances(class_name, class_type, dataset, test_id, model_type, final_width, final_height):
+def produce_pages(class_name, class_type, dataset, test_id, model_type, final_width, final_height):
     """
     Given a class and its 'class_type', processes and prepares its instances for the fine-tuning step.
     (final_width, final_height)-sized crops are extracted from each instance.
