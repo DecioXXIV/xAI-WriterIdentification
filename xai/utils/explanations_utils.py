@@ -22,23 +22,18 @@ XAI_ROOT = "./xai"
 def get_instances_to_explain(dataset, source, class_to_idx, phase):
     instances, labels = list(), list()
     
-    train_patterns = get_train_instance_patterns()
-    test_patterns = get_test_instance_patterns()
-
-    pattern_check = train_patterns[dataset] if phase == "train" else test_patterns[dataset]
+    pattern = None
+    if phase == "train": pattern = get_train_instance_patterns()
+    elif phase == "test": pattern = get_test_instance_patterns()
     
     for f in os.listdir(source):
-        if pattern_check(f): continue
+        if pattern[dataset](f):
+            writer_id = int(f[:4])
+            label = class_to_idx[str(writer_id)]
+        
+            instances.append(f"{source}/{f}")
+            labels.append(label)
 
-        writer_id = int(f[:4])
-        label = class_to_idx[str(writer_id)]
-        
-        src_path, dest_path = f"{source}/{f}", f"{XAI_ROOT}/data/{f}"
-        os.system(f"cp {src_path} {dest_path}")
-        
-        instances.append(f)
-        labels.append(label)
-    
     return instances, labels
 
 def reduce_scores(base_mask, scores, reduction_method="mean", min_eval=10):
@@ -165,27 +160,26 @@ def setup_explainer(xai_algorithm, args, model_type, model, dir_name, mean, std,
     explainer = None
     
     if xai_algorithm == "LimeBase":
-        explainer = LimeBaseExplainer(classifier=f"classifier_{model_type}", test_id=args.test_id, 
+        explainer = LimeBaseExplainer(model_type=model_type, test_id=args.test_id, 
             dir_name=dir_name, patch_size=(args.patch_width, args.patch_height), model=model,
             surrogate_model=args.surrogate_model, mean=mean, std=std, device=device)
     
     return explainer
 
-def explain_instance(dataset, instance_name, label, explainer, crop_size, patch_width, patch_height, overlap, lime_iters, xai_metadata, xai_metadata_path, remove_patches):
+def explain_instance(dataset, instance_path, label, explainer, crop_size, patch_width, patch_height, overlap, lime_iters, xai_metadata, xai_metadata_path, remove_patches):
+    instance_name = instance_path.split("/")[-1]
+    
     if instance_name in xai_metadata["INSTANCES"]:
         print(f"Skipping Instance '{instance_name}' with label '{label}': already explained!")
-        os.system(f"rm {XAI_ROOT}/data/{instance_name}")
         return
     
     print(f"Processing Instance '{instance_name}' with label '{label}'")
     
-    img_path = f"{XAI_ROOT}/data/{instance_name}"
     mask_path = f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}.png"
     if not os.path.exists(mask_path): 
-        inst_width, inst_height = get_page_dimensions(dataset)
-        generate_instance_mask(dataset=dataset, inst_width=inst_width, inst_height=inst_height, patch_width=patch_width, patch_height=patch_height)
-    img, mask = Image.open(img_path), Image.open(mask_path)
+        generate_instance_mask(dataset, patch_width, patch_height)
     
+    img, mask = Image.open(instance_path), Image.open(mask_path)
     explainer.compute_superpixel_scores(img, mask, instance_name, label, lime_iters, crop_size, overlap)
     explainer.visualize_superpixel_scores_outcomes(img, mask, instance_name, reduction_method="mean", min_eval=2)
     
@@ -197,4 +191,3 @@ def explain_instance(dataset, instance_name, label, explainer, crop_size, patch_
     xai_metadata["INSTANCES"][f"{instance_name}"]["label"] = label
     xai_metadata["INSTANCES"][f"{instance_name}"]["timestamp"] = str(datetime.now())
     save_metadata(xai_metadata, xai_metadata_path)
-    os.system(f"rm {XAI_ROOT}/data/{instance_name}")

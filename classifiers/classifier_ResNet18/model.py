@@ -58,7 +58,7 @@ def load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_met
             print(f"Fine-Tuning process for '{test_id}' has been somehow interrupted before its ending")
             print(f"{epochs_completed} epochs have already been completed: the Fine-Tuning process will be ended with the remaining {epochs_to_do} epochs")
     
-    if phase == "test":
+    elif phase == "test":
         cp_to_test = f"{output_dir}/checkpoints/Test_{test_id}_MLC_val_best_model.pth"
         model.load_state_dict(torch.load(cp_to_test)['model_state_dict'])
         model.eval()

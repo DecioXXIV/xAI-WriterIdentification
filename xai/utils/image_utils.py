@@ -6,6 +6,9 @@ import torchvision.transforms.functional as F
 from captum.attr import visualization as viz
 from PIL import Image
 from copy import deepcopy
+from torchvision.transforms import v2
+
+from utils import get_page_dimensions
 
 XAI_ROOT = "./xai"
 
@@ -49,30 +52,20 @@ def create_image_grid(
     
     return grid_dict, num_cols, num_rows
 
-def generate_instance_mask(
-        dataset: str,
-        inst_width: int,
-        inst_height: int,
-        patch_width: int,
-        patch_height: int):
+def generate_instance_mask(dataset: str, patch_width: int, patch_height: int):
+    inst_width, inst_height = get_page_dimensions(dataset)
 
-    num_columns, num_rows = int(inst_width/patch_width) + 1, int(inst_height/patch_height) + 1
+    num_columns, num_rows = (inst_width // patch_width) + 1, (inst_height // patch_height) + 1
     
     idx = np.arange(int(num_columns*num_rows), dtype=np.uint16)
     np.random.shuffle(idx)
-    mask = idx.reshape((num_rows, num_columns)).repeat(patch_height, axis = 0).repeat(patch_width, axis = 1)*1000
+    mask_array = idx.reshape((num_rows, num_columns)).repeat(patch_height, axis = 0).repeat(patch_width, axis = 1)*1000
 
-    mask_img = Image.fromarray(mask)
-    mask_width, mask_height = mask_img.size
-
-    left, right = (mask_width - inst_width)/2, (mask_width + inst_width)/2
-    top, bottom = (mask_height - inst_height)/2, (mask_height + inst_height)/2
-
-    mask = mask_img.crop((left, top, right, bottom))
-    mask = mask.crop((0, 0, inst_width, inst_height))
+    mask_img = Image.fromarray(mask_array)
+    mask_img = v2.CenterCrop((inst_height, inst_width))(mask_img)
 
     os.makedirs(f"{XAI_ROOT}/masks", exist_ok=True)
-    mask.save(f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}.png")
+    mask_img.save(f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}.png")
 
 def get_crops_bbxs(image, crop_width, crop_height):
     crop_bbxs = list()

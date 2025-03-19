@@ -12,31 +12,30 @@ from captum._utils.models.linear_model import SkLearnLinearRegression, SkLearnRi
 from captum.attr import visualization as viz
 from typing import Tuple
 
-from xai.utils.image_utils import create_image_grid, apply_transforms_crops, load_rgb_mean_std
+from xai.utils.image_utils import create_image_grid, apply_transforms_crops
 
 XAI_ROOT = "./xai"
+CLASSIFIERS_ROOT = "./classifiers"
 torch.backends.cudnn.benchmark = True
 
 ### ################## ###
 ### LimeBase EXPLAINER ###
 ### ################## ###
 class LimeBaseExplainer:
-    def __init__(self, classifier: str, test_id: str, dir_name: str,
-            patch_size: Tuple[int, int], model, surrogate_model: str="LinReg",
-            mean=None, std=None, device=None):
+    def __init__(self, model_type: str, test_id: str, dir_name: str,
+            patch_size: Tuple[int, int], model, surrogate_model: str,
+            mean, std, device=None):
         
-        self.classifier = classifier
+        self.model_type = model_type
         self.test_id = test_id
         self.dir_name = dir_name
         self.patch_width, self.patch_height = patch_size
         self.model = model
         self.surrogate_model = surrogate_model
-        if device is not None: self.device = device
+        self.mean_ = mean
+        self.std_ = std
         
-        if mean is None and std is None: self.mean_, self.std_ = load_rgb_mean_std(f"./../classifiers/{classifier}/tests/{test_id}")
-        else: self.mean_, self.std_ = mean, std
-
-        os.makedirs(f"{XAI_ROOT}/data", exist_ok=True)
+        if device is not None: self.device = device
     
     def compute_superpixel_scores(self, base_img, base_mask, instance_name, label_idx, n_iter, crop_size, overlap):
         instance_name = instance_name[:-4]

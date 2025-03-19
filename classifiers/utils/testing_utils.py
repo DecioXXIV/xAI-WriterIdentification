@@ -7,12 +7,11 @@ from sklearn.metrics import classification_report, confusion_matrix
 
 def process_test_set(dl, device, model):
     dataset, set_ = dl.load_data()
-    
-    labels, preds = list(), list()
-    
     target_names = list(dataset.class_to_idx.keys())
     c_to_idx = dataset.class_to_idx
     idx_to_c = {c_to_idx[k]: k for k in list(c_to_idx.keys())}
+    
+    labels, preds = list(), list()
     
     for data, target in tqdm(set_):
         if data.dim() == 4:

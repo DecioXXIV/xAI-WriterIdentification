@@ -5,7 +5,6 @@ from argparse import ArgumentParser
 from utils import load_metadata, save_metadata, str2bool, get_model_base_checkpoint
 from classifiers.utils.fine_tune_utils import load_model
 
-from xai.utils.image_utils import load_rgb_mean_std
 from xai.utils.explanations_utils import get_instances_to_explain, setup_explainer, explain_instance
 
 LOG_ROOT = "./log"
@@ -97,7 +96,7 @@ if __name__ == '__main__':
     print("Model Loaded!")
     print("Classes:", classes)
     
-    mean, std = load_rgb_mean_std(f"{CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}")
+    mean, std = EXP_METADATA["FINE_TUNING_HP"]["mean"], EXP_METADATA["FINE_TUNING_HP"]["std"]
     
     explainer = setup_explainer(XAI_ALGORITHM, args, MODEL_TYPE, model, dir_name, mean, std, DEVICE)
     
@@ -130,9 +129,9 @@ if __name__ == '__main__':
         
     # Explanation Process
     OVERLAP = CROP_SIZE - 25
-
-    for instance_name, label in zip(instances, labels):
-        explain_instance(DATASET, instance_name, label, explainer, CROP_SIZE, PATCH_WIDTH, PATCH_HEIGHT, OVERLAP, LIME_ITERS, XAI_METADATA, XAI_METADATA_PATH, REMOVE_PATCHES)
+    
+    for instance_path, label in zip(instances, labels):
+        explain_instance(DATASET, instance_path, label, explainer, CROP_SIZE, PATCH_WIDTH, PATCH_HEIGHT, OVERLAP, LIME_ITERS, XAI_METADATA, XAI_METADATA_PATH, REMOVE_PATCHES)
     
     os.system(f"cp {CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}/rgb_train_stats.pkl {XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
     EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["XAI_END_TIMESTAMP"] = str(datetime.now())

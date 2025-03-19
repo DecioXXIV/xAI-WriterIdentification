@@ -8,10 +8,8 @@ def get_args():
     parser.add_argument("-base_id", type=str, required=True)
     parser.add_argument("-ret_id", type=str, required=True)
     parser.add_argument("-subject", type=str, required=True, choices=["confidence", "explanations"])
-    parser.add_argument("-mode", type=str, choices=["scan", "random"])
-    parser.add_argument("-mult_factor", type=str, default="1")
-    parser.add_argument("-iters", type=int, default=3)
     parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase"])
+    parser.add_argument("-xai_mode", type=str, default="base", choices=["base", "counterfactual_top_class"])
     
     return parser.parse_args()
 
@@ -32,25 +30,20 @@ if __name__ == '__main__':
         print("*** THERE ARE INCONGRUENCES WITHIN THE TEST TO BE COMPARED! ***")
         exit(1)
     
-    BASELINE, RETRAINED = args.base_id, args.ret_id
+    BASELINE_ID, RETRAINED_ID = args.base_id, args.ret_id
     SUBJECT = args.subject
-    MODE = args.mode
     XAI_ALGORITHM = args.xai_algorithm
+    XAI_MODE = args.xai_mode
     
-    MULT_FACTORS = list()
-    for f in args.mult_factor.split(','): MULT_FACTORS.append(int(f))
-    ITERS = args.iters
-    
-    print(f"Baseline Experiment: {BASELINE}")
-    print(f"Re-Trained Experiment: {RETRAINED}")
+    print(f"Baseline Experiment: {BASELINE_ID}")
+    print(f"Re-Trained Experiment: {RETRAINED_ID}")
     
     if SUBJECT == "confidence":
-        if MODE == "scan": print(f"*** BEGINNING OF CONFIDENCE PAIR TEST -> '{MODE}' MODE, MULT_FACTOR = {MULT_FACTORS} ***")
-        if MODE == "random": print(f"*** BEGINNING OF CONFIDENCE PAIR TEST -> '{MODE}' MODE, ITERS = {ITERS} ***")
-        pair_confidence_test(BASELINE, RETRAINED, MODE, MULT_FACTORS, ITERS)
+        print("*** BEGINNING OF CONFIDENCE PAIR TEST ***")
+        pair_confidence_test(BASELINE_ID, RETRAINED_ID)
     if SUBJECT == "explanations":
         print(f"*** BEGINNING OF EXPLANATIONS PAIR TEST -> '{XAI_ALGORITHM}' ALGORITHM") 
-        pair_explanations_test(BASELINE, RETRAINED, XAI_ALGORITHM)
+        pair_explanations_test(BASELINE_ID, RETRAINED_ID, XAI_ALGORITHM, XAI_MODE)
 
     print()
     torch.cuda.empty_cache()
