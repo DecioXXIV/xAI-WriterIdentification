@@ -51,6 +51,7 @@ def validate_and_process_args(args) -> dict:
 ### MAIN ###
 ### #### ###
 if __name__ == '__main__':
+    os.makedirs(LOG_ROOT, exist_ok=True)
     args = get_args()
     TEST_ID = args.test_id
     EXP_METADATA_PATH = os.path.join(LOG_ROOT, f"{TEST_ID}-metadata.json")
