@@ -18,9 +18,10 @@ EVAL_ROOT = "./evals"
 
 ### Superclass ###
 class ImageMasker:    
-    def __init__(self, dataset:str, inst_set: str, instances: list, paths: list, 
+    def __init__(self, dataset: str, inst_set: str, instances: list, paths: list, 
                 test_id: str, exp_dir: str, mask_rate: float, mask_mode: str,
-                patch_width: int, patch_height: int, xai_algorithm: str, xai_mode: str, exp_metadata: dict):
+                patch_width: int, patch_height: int, xai_algorithm: str, 
+                xai_mode: str, exp_metadata: dict, save_patches=True, verbose=False):
         self.dataset = dataset
         self.inst_set = inst_set
         self.instances = instances
@@ -33,13 +34,14 @@ class ImageMasker:
         self.xai_algorithm = xai_algorithm
         self.xai_mode = xai_mode
         self.exp_metadata = exp_metadata
+        self.save_patches = save_patches
+        self.verbose = verbose
         
         self.full_img_width, self.full_img_height = 0, 0
         self.final_width, self.final_height = get_page_dimensions(self.dataset)
         self.v_overlap, self.h_overlap = 0, 0
         
-        with open(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{exp_dir}/rgb_train_stats.pkl", "rb") as f:
-            self.training_mean, _ = pickle.load(f)
+        self.training_mean = self.exp_metadata["FINE_TUNING_HP"]["mean"]
     
     def find_patches_coordinates(self, instance_name) -> list:
         """
@@ -122,7 +124,7 @@ class SaliencyMasker(ImageMasker):
         This method performs the Saliency masking for a given instance.
         """
 
-        print(f"Processing Saliency Masking for Instance: {full_img_name}")
+        if self.verbose: print(f"Processing Saliency Masking for Instance: {full_img_name}")
         full_img = Image.open(full_img_path)
         
         self.full_img_width, self.full_img_height = full_img.size
@@ -132,7 +134,7 @@ class SaliencyMasker(ImageMasker):
         self.h_overlap = max(1, int((((vert_cuts) * self.final_width) - self.full_img_width) / vert_cuts))
         self.v_overlap = max(1, int((((hor_cuts) * self.final_height) - self.full_img_height) / hor_cuts))  
         
-        ROOT_OF_MASKINGS = f"{XAI_ROOT}/mask_images/{self.exp_dir}"
+        ROOT_OF_MASKINGS = f"{XAI_ROOT}/masked_images/{self.exp_dir}"
         self.INSTANCE_DIR = f"{ROOT_OF_MASKINGS}/{full_img_name}"
         os.makedirs(self.INSTANCE_DIR, exist_ok=True)
         
@@ -145,7 +147,7 @@ class SaliencyMasker(ImageMasker):
             MASK_METADATA = load_metadata(MASK_METADATA_PATH)
         
         if not os.path.exists(f"{self.INSTANCE_DIR}/masking_results.csv"):
-            print("PHASE 1 -> PATCHES MAPPING")
+            if self.verbose: print("PHASE 1 -> PATCHES MAPPING")
             instances = [i for i in os.listdir(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}") if full_img_name in i]
             
             with mp.Pool(mp.cpu_count()) as pool:
@@ -157,18 +159,30 @@ class SaliencyMasker(ImageMasker):
             df.to_csv(f"{self.INSTANCE_DIR}/masking_results.csv", index=False, header=True)
         
         else:
-            print("PHASE 1 SKIPPED -> PATCHES MAPPING ALREADY AVAILABLE")
+            if self.verbose: print("PHASE 1 SKIPPED -> PATCHES MAPPING ALREADY AVAILABLE")
             df = pd.read_csv(f"{self.INSTANCE_DIR}/masking_results.csv", header=0)
-
-        print("PHASE 2 -> MASKING PROCESS")
+        
+        if self.verbose: print("PHASE 2 -> MASKING PROCESS")
         
         self.INSTANCE_DIR_MODE_RATE = f"{self.INSTANCE_DIR}/{self.mask_mode}_{self.mask_rate}"
+        os.makedirs(self.INSTANCE_DIR_MODE_RATE, exist_ok=True)
+        
+        if self.save_patches and not os.path.exists(f"{self.INSTANCE_DIR}/removed_patches"):
+            os.makedirs(f"{self.INSTANCE_DIR}/removed_patches", exist_ok=True)
+            for row in range(0, len(df)):
+                patch_id = df.iloc[row]["Instance_Patch"].split('_')[-1]
+                score = df.iloc[row]["Score"]
+                left = df.iloc[row]["Coordinates_Left"]
+                top = df.iloc[row]["Coordinates_Top"] 
+                right = df.iloc[row]["Coordinates_Right"] 
+                bottom = df.iloc[row]["Coordinates_Bottom"]
+                
+                patch = full_img.crop((left, top, right, bottom))
+                patch.save(f"{self.INSTANCE_DIR}/removed_patches/{row+1}_{patch_id}_{score}.jpg")
         
         full_img_area = self.full_img_width * self.full_img_height   
         full_img_to_mask = deepcopy(full_img)
         full_img_to_mask_tensor = T.ToTensor()(full_img_to_mask)
-        
-        os.makedirs(f"{self.INSTANCE_DIR_MODE_RATE}/removed_patches", exist_ok=True)
 
         """
         Saliency Masking Process:
@@ -179,21 +193,22 @@ class SaliencyMasker(ImageMasker):
         a not-positive Attribution Score.
         """
         
-        check_array = np.ones(shape=(self.full_img_width, self.full_img_height))
-        masked_patches, masked_area, idx  = 0, 0, 0
+        check_array = np.ones(shape=(self.full_img_height, self.full_img_width))
+        masked_patches, masked_area, row  = 0, 0, 0
         end_condition = False
         while not end_condition:
-            left = df.iloc[idx]["Coordinates_Left"]
-            top = df.iloc[idx]["Coordinates_Top"] 
-            right = df.iloc[idx]["Coordinates_Right"] 
-            bottom = df.iloc[idx]["Coordinates_Bottom"]
+            patch_id = df.iloc[row]["Instance_Patch"].split('_')[-1]
+            left = df.iloc[row]["Coordinates_Left"]
+            top = df.iloc[row]["Coordinates_Top"] 
+            right = df.iloc[row]["Coordinates_Right"] 
+            bottom = df.iloc[row]["Coordinates_Bottom"]
                     
             if (right - left + 1 != self.patch_width) or (bottom - top + 1 != self.patch_height):
-                print(f"Skipped patch {idx} due to wrong dimensions")
-                idx += 1
+                if self.verbose: print(f"Skipped {patch_id} due to wrong dimensions")
+                row += 1
                 continue
             
-            if df.iloc[idx]["Score"] <= 0:
+            if df.iloc[row]["Score"] <= 0:
                 end_condition = True
             
             else:
@@ -201,10 +216,7 @@ class SaliencyMasker(ImageMasker):
                     full_img_to_mask_tensor[channel, top:bottom+1, left:right+1] = mean_v
                 
                 check_array[top:bottom+1, left:right+1] = 0
-                idx, masked_patches = idx + 1, masked_patches + 1
-                
-                patch = full_img.crop((left, top, right, bottom))
-                patch.save(f"{self.INSTANCE_DIR_MODE_RATE}/removed_patches/patch_{masked_patches}.jpg")
+                row, masked_patches = row + 1, masked_patches + 1
                 
                 masked_area = np.count_nonzero(check_array == 0)
                 if (masked_area > full_img_area * self.mask_rate):
@@ -214,7 +226,7 @@ class SaliencyMasker(ImageMasker):
         full_img_masked = T.ToPILImage()(full_img_masked_tensor_copy)
         full_img_masked.save(f"{self.INSTANCE_DIR_MODE_RATE}/{full_img_name}_masked_{self.mask_mode}_{self.mask_rate}{full_img_type}")
         
-        print(f"End of Masking Process for the current Instance -> Masked Patches: {masked_patches}\n")
+        if self.verbose: print(f"End of Masking Process for the current Instance -> Masked Patches: {masked_patches}\n")
         
         masked_area_ratio = masked_area / full_img_area
         MASK_METADATA["INSTANCES"][f"{full_img_name}"] = masked_area_ratio
@@ -230,7 +242,7 @@ class RandomMasker(ImageMasker):
         """
         This method performs the Random masking for a given instance.
         """
-        print(f"Processing Random Masking for Instance: {full_img_name}")
+        if self.verbose: print(f"Processing Random Masking for Instance: {full_img_name}")
         full_img = Image.open(full_img_path)
         
         self.full_img_width, self.full_img_height = full_img.size
@@ -240,7 +252,7 @@ class RandomMasker(ImageMasker):
         self.h_overlap = max(1, int((((vert_cuts) * self.final_width) - self.full_img_width) / vert_cuts))
         self.v_overlap = max(1, int((((hor_cuts) * self.final_height) - self.full_img_height) / hor_cuts)) 
         
-        ROOT_OF_MASKINGS = f"{XAI_ROOT}/mask_images/{self.exp_dir}"
+        ROOT_OF_MASKINGS = f"{XAI_ROOT}/masked_images/{self.exp_dir}"
         self.INSTANCE_DIR = f"{ROOT_OF_MASKINGS}/{full_img_name}"
         os.makedirs(self.INSTANCE_DIR, exist_ok=True)
         
@@ -252,65 +264,43 @@ class RandomMasker(ImageMasker):
         else:
             MASK_METADATA = load_metadata(MASK_METADATA_PATH)
         
-        if not os.path.exists(f"{self.INSTANCE_DIR}/masking_results.csv"):
-            print("PHASE 1 -> PATCHES MAPPING")
-            instances = [i for i in os.listdir(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}") if full_img_name in i]
-            
-            with mp.Pool(mp.cpu_count()) as pool:
-                results = pool.map(self.find_patches_coordinates, instances)
-            
-            all_results = [item for sublist in results for item in sublist]
-            df = pd.DataFrame(all_results, columns=["Instance_Patch", "Score", "Coordinates_Left", "Coordinates_Top", "Coordinates_Right", "Coordinates_Bottom"])
-            df = df.sort_values(by="Score", ascending=False)
-            df.to_csv(f"{self.INSTANCE_DIR}/masking_results.csv", index=False, header=True)
-        
-        else:
-            print("PHASE 1 SKIPPED -> PATCHES MAPPING ALREADY AVAILABLE")
-            df = pd.read_csv(f"{self.INSTANCE_DIR}/masking_results.csv", header=0)
-
-        print("PHASE 2 -> MASKING PROCESS")
+        if self.verbose: print("MASKING PROCESS")
         
         self.INSTANCE_DIR_MODE_RATE = f"{self.INSTANCE_DIR}/{self.mask_mode}_{self.mask_rate}"
+        os.makedirs(self.INSTANCE_DIR_MODE_RATE, exist_ok=True)
         
         full_img_area = self.full_img_width * self.full_img_height   
         full_img_to_mask = deepcopy(full_img)
         full_img_to_mask_tensor = T.ToTensor()(full_img_to_mask)
-        
-        os.makedirs(f"{self.INSTANCE_DIR_MODE_RATE}/removed_patches", exist_ok=True)
 
         """
         Random Masking Process:
-        Masking is performed by drawing one (patch_width, patch_height)-sized
-        patch at a time.
+        Masking is performed by drawing one (patch_width, patch_height)-sized patch at a time.
 
-        Random: drawn patches do not follow the the rigid structure defined
-        by the Mask.
+        Drawn patches do not follow the the rigid structure defined by the Mask.
         """
         
-        check_array = np.ones(shape=(self.full_img_width, self.full_img_height))
+        check_array = np.ones(shape=(self.full_img_height, self.full_img_width))
         masked_patches, masked_area, idx  = 0, 0, 0
         
         end_condition = False
         while not end_condition:
             left = np.random.randint(0, self.full_img_width - self.patch_width + 1)
-            right = left + self.patch_width
+            right = left + self.patch_width - 1
             top = np.random.randint(0, self.full_img_height - self.patch_height + 1)
-            bottom = top + self.patch_height
+            bottom = top + self.patch_height - 1
                     
-            if (right - left != self.patch_width) or (bottom - top != self.patch_height):
-                print(f"Skipped patch {idx} due to wrong dimensions")
+            if (right - left +1  != self.patch_width) or (bottom - top + 1 != self.patch_height):
+                if self.verbose: print(f"Skipped patch {idx} due to wrong dimensions")
                 idx += 1
                 continue
             
             else:
                 for channel, mean_v in enumerate(self.training_mean):
-                    full_img_to_mask_tensor[channel, top:bottom, left:right] = mean_v
+                    full_img_to_mask_tensor[channel, top:bottom+1, left:right+1] = mean_v
                 
-                check_array[top:bottom, left:right] = 0
+                check_array[top:bottom+1, left:right+1] = 0
                 idx, masked_patches = idx + 1, masked_patches + 1
-                
-                patch = full_img.crop((left, top, right, bottom))
-                patch.save(f"{self.INSTANCE_DIR_MODE_RATE}/removed_patches/patch_{masked_patches}.jpg")
                 
                 masked_area = np.count_nonzero(check_array == 0)
                 if (masked_area > full_img_area * self.mask_rate):
@@ -320,7 +310,7 @@ class RandomMasker(ImageMasker):
         full_img_masked = T.ToPILImage()(full_img_masked_tensor_copy)
         full_img_masked.save(f"{self.INSTANCE_DIR_MODE_RATE}/{full_img_name}_masked_{self.mask_mode}_{self.mask_rate}{full_img_type}")
         
-        print(f"End of Masking Process for the current Instance -> Masked Patches: {masked_patches}\n")
+        if self.verbose: print(f"End of Masking Process for the current Instance -> Masked Patches: {masked_patches}\n")
         
         masked_area_ratio = masked_area / full_img_area
         MASK_METADATA["INSTANCES"][f"{full_img_name}"] = masked_area_ratio

@@ -55,14 +55,14 @@ if __name__ == '__main__':
     
     masker = None
     if MASK_MODE == "saliency":
-        masker = SaliencyMasker(inst_set=INSTANCE_SET, instances=instances, paths=paths, test_id=TEST_ID,
-            exp_dir=EXP_DIR, mask_rate=MASK_RATE, mask_mode=MASK_MODE,
-            patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
-            xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, exp_metadata=EXP_METADATA)
+        masker = SaliencyMasker(dataset=DATASET,inst_set=INSTANCE_SET, instances=instances, 
+            paths=paths, test_id=TEST_ID, exp_dir=EXP_DIR, mask_rate=MASK_RATE, 
+            mask_mode=MASK_MODE, patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
+            xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, exp_metadata=EXP_METADATA, save_patches=True, verbose=True)
     elif MASK_MODE == "random":
-        masker = RandomMasker(inst_set=INSTANCE_SET, instances=instances, paths=paths, test_id=TEST_ID,
-            exp_dir=EXP_DIR, mask_rate=MASK_RATE, mask_mode=MASK_MODE,
-            patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
-            xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, exp_metadata=EXP_METADATA)
+        masker = RandomMasker(dataset=DATASET,inst_set=INSTANCE_SET, instances=instances, 
+            paths=paths, test_id=TEST_ID, exp_dir=EXP_DIR, mask_rate=MASK_RATE, 
+            mask_mode=MASK_MODE, patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
+            xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, exp_metadata=EXP_METADATA, save_patches=False, verbose=True)
     
     masker()
