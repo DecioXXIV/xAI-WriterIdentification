@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from typing import List
+from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingLR
 
 from utils import save_metadata
 
@@ -25,23 +26,23 @@ def save_history(filepath: str, data: List[float]):
     with open(filepath, "wb") as f:
         pkl.dump(data, f)
         
-def save_checkpoint(epoch_loss, min_loss, model, optimizer, filepath, phase, check=True):
+def save_checkpoint(epoch_loss, min_loss, model, optimizer, scheduler, filepath, phase, check=True):
+    state_dict = dict()
+    state_dict["model_state_dict"] = model.state_dict()
+    state_dict["optimizer_state_dict"] = optimizer.state_dict()
+    state_dict["loss"] = epoch_loss
+    if scheduler is not None: state_dict["scheduler_state_dict"] = scheduler.state_dict()
+    
     # Saving the New Best Checkpoint: check "train_loss" and "val_loss"
     if check is True and epoch_loss <= min_loss:
         checkpoint_path = f"{filepath}{phase}_best_model.pth"
-        torch.save({
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "loss": epoch_loss}, checkpoint_path)
+        torch.save(state_dict, checkpoint_path)
         return epoch_loss
 
     # Saving the Last Checkpoint: this allows to restore the Training Process if interrupted before its ending
     elif check is False:
         checkpoint_path = f"{filepath}last_checkpoint.pth"
-        torch.save({
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "loss": epoch_loss}, checkpoint_path)
+        torch.save(state_dict, checkpoint_path)
     
     return min_loss if check else None
 
@@ -72,6 +73,17 @@ def plot_metric(metric, output_dir, test_id):
     plt.legend(['Training', 'Validation'], loc='best')
     plt.savefig(f'{output_dir}/Test_{test_id}_MLC_{metric}.png')
     plt.close()
+
+def plot_learning_rates(output_dir, test_id):
+    with open(f"{output_dir}/Test_{test_id}_MLC_learning_rates.pkl", "rb") as f:
+        learning_rates = pkl.load(f)
+    
+    plt.plot(learning_rates)
+    plt.title("Learning Rate Schedule")
+    plt.ylabel("Learning Rate [-]")
+    plt.xlabel("Epoch [-]")
+    plt.savefig(f'{output_dir}/Test_{test_id}_MLC_learning_rates.png')
+    plt.close()
             
 ### ####### ###
 ### TRAINER ###
@@ -83,30 +95,60 @@ def set_optimizer(optim_type, lr_, model, cp=None):
     elif optim_type == 'sgd':
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
             lr = lr_, momentum = 0.9, nesterov = False, weight_decay = 0.0001)
-    elif optim_type == 'nesterov':
-        optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_, momentum = 0.9, nesterov = True, weight_decay = 0.0001)
-    elif optim_type == 'adamw-1%':
+    elif optim_type == 'adamw':
         optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
             lr = lr_, betas = [0.9, 0.999], weight_decay = 0.01)
-    elif optim_type == 'adamw-2.5%':
-        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.025) 
-    elif optim_type == 'adamw-5%':
-        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.05)
-    elif optim_type == 'adamw-10%':
-        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.10)
-    elif optim_type == 'adamw-25%':
-        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-            lr = lr_, betas = [0.9, 0.999], weight_decay = 0.25)
     else:
         raise Exception('The selected optimization type is not available.')
     
     if cp is not None: optimizer.load_state_dict(cp["optimizer_state_dict"])
 
     return optimizer
+
+class LinearWarmupCosineAnnealingLR(torch.optim.lr_scheduler._LRScheduler):
+    def __init__(self, optimizer, warmup_epochs, max_epochs, min_lr, last_epoch=-1):
+        self.warmup_epochs = warmup_epochs
+        self.max_epochs = max_epochs
+        self.min_lr = min_lr
+        super().__init__(optimizer, last_epoch)
+        
+        cosine_last_epoch = max(self.warmup_epochs, self.last_epoch - self.warmup_epochs)
+        self.cosine_scheduler = CosineAnnealingLR(optimizer, T_max=max_epochs - warmup_epochs, eta_min=min_lr, last_epoch=cosine_last_epoch)
+    
+    def get_lr(self):
+        if self.last_epoch < self.warmup_epochs:
+            # Linear Warmup
+            return [base_lr * (self.last_epoch + 1) / self.warmup_epochs for base_lr in self.base_lrs]
+        else:
+            # Cosine Annealing
+            return self.cosine_scheduler.get_last_lr()
+    
+    def step(self):
+        super().step()
+        if self.last_epoch >= self.warmup_epochs: self.cosine_scheduler.step()
+    
+    def load_state_dict(self, state_dict):
+        cosine_state_dict = state_dict.pop("cosine_scheduler").state_dict()
+        self.cosine_scheduler.load_state_dict(cosine_state_dict)
+        super().load_state_dict(state_dict)
+
+
+def set_scheduler(optimizer, exp_metadata, cp=None):
+    ft_params = exp_metadata["FINE_TUNING_HP"]
+    scheduler, scheduler_type = None, ft_params['scheduler']
+    
+    max_epochs = ft_params['total_epochs']
+    warmup_epochs = int(max_epochs * 0.1)
+    warmup_start_lr = int(ft_params['learning_rate'] * 0.25)
+    min_lr = int(ft_params['learning_rate'] * 0.025)
+    last_epoch = exp_metadata.get("EPOCHS_COMPLETED", -1)
+    
+    if scheduler_type == 'cos_warmup':
+        scheduler = LinearWarmupCosineAnnealingLR(optimizer, warmup_epochs, max_epochs, min_lr, last_epoch)
+    
+    if scheduler is not None and cp is not None: scheduler.load_state_dict(cp["scheduler_state_dict"])
+    
+    return scheduler
 
 class Trainer():
     def __init__(self, model, t_set, v_set, DEVICE, model_path, history_path, exp_metadata, last_cp=None):
@@ -122,6 +164,7 @@ class Trainer():
         
         self.optim_type = self.exp_metadata["FINE_TUNING_HP"]["optimizer"]
         self.lr_ = self.exp_metadata["FINE_TUNING_HP"]["learning_rate"]
+        self.scheduler = self.exp_metadata["FINE_TUNING_HP"]["scheduler"]
         self.num_epochs = self.exp_metadata["FINE_TUNING_HP"]["total_epochs"]
         
         self.test_id = self.exp_metadata["TEST_ID"]
@@ -188,12 +231,14 @@ class Trainer():
 
     def train_model(self):
         optimizer = set_optimizer(self.optim_type, self.lr_, self.model, self.last_cp)
+        scheduler = set_scheduler(optimizer, self.exp_metadata, self.last_cp)
         criterion = nn.CrossEntropyLoss()
         
         train_loss = load_history(f"{self.checkpoint_path}/../{self.test_name}train_loss.pkl")
         val_loss = load_history(f"{self.checkpoint_path}/../{self.test_name}val_loss.pkl")
         train_acc = load_history(f"{self.checkpoint_path}/../{self.test_name}train_accuracy.pkl")
         val_acc = load_history(f"{self.checkpoint_path}/../{self.test_name}val_accuracy.pkl")
+        learning_rates = load_history(f"{self.checkpoint_path}/../{self.test_name}learning_rates.pkl")
          
         min_loss_t = sys.maxsize
         min_loss_v = sys.maxsize
@@ -212,15 +257,21 @@ class Trainer():
             val_loss.append(val_epoch_loss)
             val_acc.append(val_epoch_acc)
             
+            current_lr = optimizer.param_groups[0]['lr']
+            learning_rates.append(current_lr)
+            
             # Save checkpoints and Training stats
-            min_loss_t = save_checkpoint(train_epoch_loss, min_loss_t, self.model, optimizer, tosave_cp_path, "train", check=True)
-            min_loss_v = save_checkpoint(val_epoch_loss, min_loss_v, self.model, optimizer, tosave_cp_path, "val", check=True)
-            _ = save_checkpoint(train_epoch_loss, None, self.model, optimizer, tosave_cp_path, None, check=False)
+            min_loss_t = save_checkpoint(train_epoch_loss, min_loss_t, self.model, optimizer, scheduler, tosave_cp_path, "train", check=True)
+            min_loss_v = save_checkpoint(val_epoch_loss, min_loss_v, self.model, optimizer, scheduler, tosave_cp_path, "val", check=True)
+            _ = save_checkpoint(train_epoch_loss, None, self.model, optimizer, scheduler, tosave_cp_path, None, check=False)
             
             save_history(f"{self.history_path}/{self.test_name}train_loss.pkl", train_loss)
             save_history(f"{self.history_path}/{self.test_name}val_loss.pkl", val_loss)
             save_history(f"{self.history_path}/{self.test_name}train_accuracy.pkl", train_acc)
             save_history(f"{self.history_path}/{self.test_name}val_accuracy.pkl", val_acc)
+            save_history(f"{self.history_path}/{self.test_name}learning_rates.pkl", learning_rates)
+            
+            if scheduler is not None: scheduler.step()
             
             # Update metadata
             self.exp_metadata["EPOCHS_COMPLETED"] = epoch
