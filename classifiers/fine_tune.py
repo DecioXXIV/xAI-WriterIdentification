@@ -17,9 +17,10 @@ def get_args():
     parser = ArgumentParser(description="Setup of Fine-tuning hyperparameters")
     parser.add_argument("-test_id", type=str, required=True)
     parser.add_argument("-crop_size", type=int, required=True)
+    parser.add_argument("-batch_size", type=int, required=True)
     parser.add_argument("-opt", type=str, required=True)
     parser.add_argument("-lr", type=float, required=True)
-    parser.add_argument("-scheduler", type=str, default=None, choices=["cos_warmup"])
+    parser.add_argument("-scheduler", type=str, default=None, choices=["cos_annealing_warmup, cos_annealing"])
     parser.add_argument("-train_replicas", type=int, required=True)
     parser.add_argument("-random_seed", type=int, default=None)
     parser.add_argument("-epochs", type=int, default=50)
@@ -44,6 +45,7 @@ if __name__ == '__main__':
     CLASSES_DATA = EXP_METADATA["CLASSES"]
     
     CROP_SIZE = args.crop_size
+    BATCH_SIZE = args.batch_size
     OPT = args.opt
     LR = args.lr
     SCHEDULER = args.scheduler
@@ -70,9 +72,9 @@ if __name__ == '__main__':
         try: BASE_ID, RET_ID = TEST_ID.split(':')
         except: BASE_ID = TEST_ID
         
-        EXP_METADATA["FINE_TUNING_HP"] = {"optimizer": OPT, "learning_rate": LR, "scheduler": SCHEDULER,
-                                          "crop_size": CROP_SIZE, "train_replicas": TRAIN_REPLICAS,
-                                          "random_seed": RANDOM_SEED, "total_epochs": EPOCHS}
+        EXP_METADATA["FINE_TUNING_HP"] = {"batch_size": BATCH_SIZE, "optimizer": OPT, "learning_rate": LR, 
+                                          "scheduler": SCHEDULER, "crop_size": CROP_SIZE, "train_replicas": TRAIN_REPLICAS,
+                                          "random_seed": RANDOM_SEED, "total_epochs": EPOCHS, "ft_mode": FT_MODE}
         save_metadata(EXP_METADATA, EXP_METADATA_PATH)
         
         create_directories(EXP_DIR, CLASSES_DATA.keys())
@@ -125,8 +127,8 @@ if __name__ == '__main__':
         torch.backends.cudnn.benchmark = False
         
         mean_, std_ = EXP_METADATA["FINE_TUNING_HP"]["mean"], EXP_METADATA["FINE_TUNING_HP"]["std"]
-        train_ds = Train_DataLoader(directory=f"{EXP_DIR}/train", classes=list(CLASSES_DATA.keys()), batch_size=96, img_crop_size=CROP_SIZE, mean=mean_, std=std_, shuffle=True)
-        val_ds = Test_DataLoader(directory=f"{EXP_DIR}/val", classes=list(CLASSES_DATA.keys()), batch_size=96, img_crop_size=CROP_SIZE, mean=mean_, std=std_)
+        train_ds = Train_DataLoader(directory=f"{EXP_DIR}/train", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_, shuffle=True)
+        val_ds = Test_DataLoader(directory=f"{EXP_DIR}/val", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_)
         _, t_dl = train_ds.load_data()
         _, v_dl = val_ds.load_data()
         

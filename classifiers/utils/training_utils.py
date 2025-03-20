@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from typing import List
-from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from utils import save_metadata
 
@@ -143,8 +143,10 @@ def set_scheduler(optimizer, exp_metadata, cp=None):
     min_lr = int(ft_params['learning_rate'] * 0.025)
     last_epoch = exp_metadata.get("EPOCHS_COMPLETED", -1)
     
-    if scheduler_type == 'cos_warmup':
+    if scheduler_type == 'cos_annealing_warmup':
         scheduler = LinearWarmupCosineAnnealingLR(optimizer, warmup_epochs, max_epochs, min_lr, last_epoch)
+    elif scheduler_type == 'cos_annealing':
+        scheduler = CosineAnnealingLR(optimizer, max_epochs, min_lr, last_epoch)
     
     if scheduler is not None and cp is not None: scheduler.load_state_dict(cp["scheduler_state_dict"])
     
