@@ -126,7 +126,7 @@ if __name__ == '__main__':
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
         
-        mean_, std_ = EXP_METADATA["FINE_TUNING_HP"]["mean"], EXP_METADATA["FINE_TUNING_HP"]["std"]
+        mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}/train_pre_aug")
         train_ds = Train_DataLoader(directory=f"{EXP_DIR}/train", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_, shuffle=True)
         val_ds = Test_DataLoader(directory=f"{EXP_DIR}/val", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_)
         _, t_dl = train_ds.load_data()
@@ -150,20 +150,24 @@ if __name__ == '__main__':
         torch.cuda.empty_cache()
         print("...Model Fine-Tuning completed!\n")
 
-    
-    print("PHASE 3 -> MODEL TESTING...")
-    test_fine_tuned_model(TEST_ID, EXP_METADATA, MODEL_TYPE, CROP_SIZE, OUTPUT_DIR, CLASSES_DATA, CP_BASE, mean_, std_)
-    print("...Testing reports are now available!\n")
+    if "MODEL_TESTING_TIMESTAMP" in EXP_METADATA:
+        print(f"*** IN RELATION TO THE EXPERIMENT '{TEST_ID}', THE MODEL HAS ALREADY BEEN TESTED! ***\n")
+
+    else:
+        print("PHASE 3 -> MODEL TESTING...")
+        mean_, std_ = EXP_METADATA["FINE_TUNING_HP"]["mean"], EXP_METADATA["FINE_TUNING_HP"]["std"]
+        test_fine_tuned_model(TEST_ID, EXP_METADATA, MODEL_TYPE, CROP_SIZE, OUTPUT_DIR, CLASSES_DATA, CP_BASE, mean_, std_)
+        print("...Testing reports are now available!\n")
      
-    print("PHASE 4 -> DATA & METADATA HANDLING...")
-    if not KEEP_CROPS:
-        os.system(f"rm -r {EXP_DIR}/train_pre_aug")
-        os.system(f"rm -r {EXP_DIR}/train")
-        os.system(f"rm -r {EXP_DIR}/val")
-        os.system(f"rm -r {EXP_DIR}/test")
-    os.system(f"rm -r {OUTPUT_DIR}/checkpoints/Test_{TEST_ID}_MLC_last_checkpoint.pth")
-    EXP_METADATA["MODEL_TESTING_TIMESTAMP"] = str(datetime.now())
-    save_metadata(EXP_METADATA, EXP_METADATA_PATH)
+        print("PHASE 4 -> DATA & METADATA HANDLING...")
+        if not KEEP_CROPS:
+            os.system(f"rm -r {EXP_DIR}/train_pre_aug")
+            os.system(f"rm -r {EXP_DIR}/train")
+            os.system(f"rm -r {EXP_DIR}/val")
+            os.system(f"rm -r {EXP_DIR}/test")
+        os.system(f"rm -r {OUTPUT_DIR}/checkpoints/Test_{TEST_ID}_MLC_last_checkpoint.pth")
+        EXP_METADATA["MODEL_TESTING_TIMESTAMP"] = str(datetime.now())
+        save_metadata(EXP_METADATA, EXP_METADATA_PATH)
         
-    torch.cuda.empty_cache()
-    print("*** END OF FINE-TUNING PROCESS ***\n")    
+        torch.cuda.empty_cache()
+        print("*** END OF FINE-TUNING PROCESS ***\n")
