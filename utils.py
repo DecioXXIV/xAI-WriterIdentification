@@ -76,6 +76,7 @@ def get_vert_hor_cuts(dataset):
     if dataset == "CVL": vert_cuts, hor_cuts = 5, 2
     if dataset == "VatLat653": vert_cuts, hor_cuts = 1, 1
     if dataset == "VatLat5951b": vert_cuts, hor_cuts = 1, 1
+    if dataset == "VatLat4220_4221a": vert_cuts, hor_cuts = 1, 1
     
     return vert_cuts, hor_cuts
 
@@ -86,6 +87,7 @@ def get_page_dimensions(dataset):
     if dataset == "CVL": final_width, final_height = 902, 1279
     if dataset == "VatLat653": final_width, final_height = 902, 1279
     if dataset == "VatLat5951b": final_width, final_height = 682, 1043
+    if dataset == "VatLat4220_4221a": final_width, final_height = 1286, 2037
     
     return final_width, final_height
 

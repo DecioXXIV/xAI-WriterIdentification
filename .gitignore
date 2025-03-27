@@ -165,6 +165,7 @@ datasets/CEDAR_Letter/*
 datasets/CVL/*
 datasets/VatLat653/*
 datasets/VatLat5951b/*
+datasets/VatLat4220_4221a/*
 
 log/*.json
 
