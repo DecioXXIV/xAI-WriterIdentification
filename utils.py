@@ -54,7 +54,8 @@ def get_train_instance_patterns():
         "CEDAR_Letter": lambda f: 'c' not in f,
         "CVL": lambda f: "-3" not in f and "-7" not in f,
         "VatLat653": lambda f: 'a' in f,
-        "VatLat5951b": lambda f: 'a' in f
+        "VatLat5951b": lambda f: 'a' in f,
+        "VatLat4220_4221a": lambda f: 'a' in f
     }
     
     return train_instance_patterns
@@ -64,7 +65,8 @@ def get_test_instance_patterns():
         "CEDAR_Letter": lambda f: 'c' in f,
         "CVL": lambda f: "-3" in f or "-7" in f,
         "VatLat653": lambda f: 't' in f,
-        "VatLat5951b": lambda f: 't' in f
+        "VatLat5951b": lambda f: 't' in f,
+        "VatLat4220_4221a": lambda f: 't' in f
     }
     
     return test_instance_patterns
@@ -73,10 +75,10 @@ def get_vert_hor_cuts(dataset):
     vert_cuts, hor_cuts = None, None
     
     if dataset == "CEDAR_Letter": vert_cuts, hor_cuts = 7, 4
-    if dataset == "CVL": vert_cuts, hor_cuts = 5, 2
-    if dataset == "VatLat653": vert_cuts, hor_cuts = 1, 1
-    if dataset == "VatLat5951b": vert_cuts, hor_cuts = 1, 1
-    if dataset == "VatLat4220_4221a": vert_cuts, hor_cuts = 1, 1
+    elif dataset == "CVL": vert_cuts, hor_cuts = 5, 2
+    elif dataset == "VatLat653": vert_cuts, hor_cuts = 1, 1
+    elif dataset == "VatLat5951b": vert_cuts, hor_cuts = 1, 1
+    elif dataset == "VatLat4220_4221a": vert_cuts, hor_cuts = 1, 1
     
     return vert_cuts, hor_cuts
 
@@ -84,10 +86,10 @@ def get_page_dimensions(dataset):
     final_width, final_height = None, None
     
     if dataset == "CEDAR_Letter": final_width, final_height = 902, 1279
-    if dataset == "CVL": final_width, final_height = 902, 1279
-    if dataset == "VatLat653": final_width, final_height = 902, 1279
-    if dataset == "VatLat5951b": final_width, final_height = 682, 1043
-    if dataset == "VatLat4220_4221a": final_width, final_height = 1286, 2037
+    elif dataset == "CVL": final_width, final_height = 902, 1279
+    elif dataset == "VatLat653": final_width, final_height = 902, 1279
+    elif dataset == "VatLat5951b": final_width, final_height = 682, 1043
+    elif dataset == "VatLat4220_4221a": final_width, final_height = 1286, 2037
     
     return final_width, final_height
 
