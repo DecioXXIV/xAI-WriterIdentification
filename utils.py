@@ -1,5 +1,7 @@
-import json, os
+import json, os, torch
 from argparse import ArgumentTypeError
+from torchvision import transforms as T
+from torch.nn import functional as F
 
 LOG_ROOT = "./log"
 DATASETS_ROOT = "./datasets"
@@ -99,4 +101,28 @@ def get_page_dimensions(dataset):
 def get_model_base_checkpoint(model_type):
     if model_type == "ResNet18":
         return f"{CLASSIFIERS_ROOT}/classifier_{model_type}/cp/Test_3_TL_val_best_model.pth"
+
+
+### ############################## ###
+### BATCH PREDICT FOR EXPLANATIONS ###
+### ############################## ###
+def get_batch_predict_function(model_type):
+    if model_type == "ResNet18":
+        def batch_predict(model, inputs, mean, std):
+            model.eval()
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+            t_transforms = T.Compose([T.ToTensor(), T.Normalize(mean, std)])
+            batch = torch.stack(tuple(t_transforms(i) for i in inputs), dim=0)
+
+            model.to(device)
+            batch = batch.to(device)
+
+            with torch.no_grad():
+                logits = model(batch)
+                probs = F.softmax(logits, dim=1)
+            
+            return probs.detach().cpu().numpy()
+    
+        return batch_predict
     

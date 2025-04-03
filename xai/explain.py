@@ -1,11 +1,13 @@
-import torch, os, pickle
+import torch, os, json, pickle
 from datetime import datetime
 from argparse import ArgumentParser
+from PIL import Image
 
-from utils import load_metadata, save_metadata, str2bool, get_model_base_checkpoint
+from utils import load_metadata, save_metadata, get_model_base_checkpoint
 from classifiers.utils.fine_tune_utils import load_model
 
-from xai.utils.explanations_utils import get_instances_to_explain, setup_explainer, explain_instance
+from xai.utils.image_utils import produce_padded_page, generate_mask
+from xai.utils.explanations_utils import get_instances_to_explain, setup_explainer, explain_instance, visualize_exp_outcome
 
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
@@ -17,11 +19,13 @@ def get_args():
     parser.add_argument("-test_id", type=str, required=True)
     parser.add_argument("-patch_width", type=int, required=True)
     parser.add_argument("-patch_height", type=int, required=True)
-    parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase"])
-    parser.add_argument("-surrogate_model", type=str, required=True, choices=["LinReg", "Ridge"])
-    parser.add_argument("-mode", type=str, required=True, choices=["base", "counterfactual_top_class"])
-    parser.add_argument("-lime_iters", type=int, default=3)
-    parser.add_argument("-remove_patches", type=str2bool, default=False)
+    parser.add_argument("-overlap", type=float, required=True)
+    parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase", "GLimeBinomial"])
+    parser.add_argument("-surrogate_model", type=str, required=True, choices=["LinReg", "Ridge", "Lasso", "ElasticNet"])
+    parser.add_argument("-num_samples", type=int, default=100)
+    parser.add_argument("-kernel_width", type=float, default=None)
+    parser.add_argument("-mode", type=str, default="base", choices=["base", "counterfactual_top_class"])
+    parser.add_argument("-iters", type=int, default=1)
 
     return parser.parse_args()
 
@@ -41,11 +45,16 @@ if __name__ == '__main__':
         
     PATCH_WIDTH, PATCH_HEIGHT = args.patch_width, args.patch_height
     CROP_SIZE = EXP_METADATA["FINE_TUNING_HP"]["crop_size"]
+    OVERLAP = int(args.overlap * CROP_SIZE)
     XAI_ALGORITHM = args.xai_algorithm
     SURROGATE_MODEL = args.surrogate_model
+    NUM_SAMPLES = args.num_samples
+    KERNEL_WIDTH = args.kernel_width
+    if KERNEL_WIDTH is None:
+        if XAI_ALGORITHM == "LimeBase": KERNEL_WIDTH = 5.0
+        elif XAI_ALGORITHM == "GLimeBinomial": KERNEL_WIDTH = 0.5
     MODE = args.mode
-    LIME_ITERS = args.lime_iters
-    REMOVE_PATCHES = args.remove_patches
+    ITERS = args.iters
 
     DATASET = EXP_METADATA["DATASET"]
     MODEL_TYPE = EXP_METADATA["MODEL_TYPE"]
@@ -56,13 +65,13 @@ if __name__ == '__main__':
     cp_base = get_model_base_checkpoint(MODEL_TYPE)
         
     start, dir_name = None, None
-    if f"{XAI_ALGORITHM}_{MODE}_METADATA" in EXP_METADATA:
-        if "XAI_END_TIMESTAMP" in EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]:
-            print(f"*** IN RELATION TO THE EXPERIMENT '{TEST_ID}', THE MODEL PREDICTIONS HAVE ALREADY BEEN EXPLAINED WITH '{XAI_ALGORITHM}' AND UNDER MODE '{MODE}'! ***\n")
+    if f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA" in EXP_METADATA:
+        if "XAI_END_TIMESTAMP" in EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]:
+            print(f"*** IN RELATION TO THE EXPERIMENT '{TEST_ID}', THE MODEL PREDICTIONS HAVE ALREADY BEEN EXPLAINED WITH '{XAI_ALGORITHM}', WITH MODE '{MODE}' AND USING '{SURROGATE_MODEL}' AS SURROGATE MODEL! ***\n")
             exit(1)
         
-        start = EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["XAI_START_TIMESTAMP"]
-        dir_name = EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["DIR_NAME"]
+        start = EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["XAI_START_TIMESTAMP"]
+        dir_name = EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["DIR_NAME"]
         
         XAI_METADATA_PATH = f"{XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}/{TEST_ID}-xai_metadata.json"
         XAI_METADATA = load_metadata(XAI_METADATA_PATH)
@@ -74,11 +83,13 @@ if __name__ == '__main__':
         explanations_dir_path = f"{XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}"
         os.makedirs(explanations_dir_path, exist_ok=True)
         
-        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"] = dict()
-        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["XAI_START_TIMESTAMP"] = start
-        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["PATCH_DIM"] = {"WIDTH": PATCH_WIDTH, "HEIGHT": PATCH_HEIGHT}
-        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["DIR_NAME"] = dir_name
-        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["REMOVE_PATCHES"] = REMOVE_PATCHES
+        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"] = dict()
+        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["XAI_START_TIMESTAMP"] = start
+        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["PATCH_DIM"] = {"WIDTH": PATCH_WIDTH, "HEIGHT": PATCH_HEIGHT}
+        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["NUM_SAMPLES"] = NUM_SAMPLES
+        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["OVERLAP"] = OVERLAP
+        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["ITERS"] = ITERS
+        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["DIR_NAME"] = dir_name
         save_metadata(EXP_METADATA, EXP_METADATA_PATH)
         
         XAI_METADATA = dict()
@@ -98,7 +109,7 @@ if __name__ == '__main__':
     
     mean, std = EXP_METADATA["FINE_TUNING_HP"]["mean"], EXP_METADATA["FINE_TUNING_HP"]["std"]
     
-    explainer = setup_explainer(XAI_ALGORITHM, args, MODEL_TYPE, model, dir_name, mean, std, DEVICE)
+    explainer = setup_explainer(XAI_ALGORITHM, SURROGATE_MODEL, MODEL_TYPE, model, NUM_SAMPLES, KERNEL_WIDTH, mean, std)
     
     BASE_ID, RET_ID = None, None
     try: BASE_ID, RET_ID = TEST_ID.split(':')
@@ -128,10 +139,44 @@ if __name__ == '__main__':
         labels.extend(test_labels)
         
     # Explanation Process
-    OVERLAP = CROP_SIZE - 25
+    os.makedirs(f"{XAI_ROOT}/masks", exist_ok=True)
+    os.makedirs(f"{XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}", exist_ok=True)
     
     for instance_path, label in zip(instances, labels):
-        explain_instance(DATASET, instance_path, label, explainer, CROP_SIZE, PATCH_WIDTH, PATCH_HEIGHT, OVERLAP, LIME_ITERS, XAI_METADATA, XAI_METADATA_PATH, REMOVE_PATCHES)
+        instance_name = instance_path.split("/")[-1][:-4]
+        instance_type = instance_path.split("/")[-1][-4:]
+        
+        if instance_name in XAI_METADATA["INSTANCES"]:
+            print(f"Skipping instance '{instance_name}' with label '{label}': already explained!")
+        
+        else:
+            print(f"Processing Instance '{instance_name}' with label '{label}'")
+            output_dir = f"{XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}/{instance_name}"
+            os.makedirs(output_dir, exist_ok=True)
+            img = Image.open(instance_path)
+            padded_img, img_rows, img_cols = produce_padded_page(img, instance_name, instance_type, CROP_SIZE, OVERLAP, mean, output_dir)
+
+            mask_dir = f"{XAI_ROOT}/masks/{DATASET}_mask_{PATCH_WIDTH}x{PATCH_HEIGHT}_cs{CROP_SIZE}_overlap{OVERLAP}"
+            os.makedirs(mask_dir, exist_ok=True)
+            if not os.path.exists(f"{mask_dir}/mask.png"):
+                mask_img, mask_rows, mask_cols = generate_mask(padded_img, DATASET, PATCH_WIDTH, PATCH_HEIGHT, CROP_SIZE, OVERLAP)
+            else: 
+                mask_img = Image.open(f"{mask_dir}/mask.png")
+                with open(f"{mask_dir}/dimensions.json", "r") as f: dimensions = json.load(f)
+                mask_rows, mask_cols = dimensions["mask_rows"], dimensions["mask_cols"]
+
+            norm_scores = None
+            if f"{instance_name}_scores.pkl" not in os.listdir(f"{output_dir}"):
+                norm_scores = explain_instance(explainer, padded_img, img_rows, img_cols, instance_name, label, mask_img, mask_rows, mask_cols, output_dir, CROP_SIZE, OVERLAP, ITERS)
+            else: 
+                with open(f"{output_dir}/{instance_name}_scores.json", "r") as f: norm_scores = json.load(f)
+            
+            visualize_exp_outcome(norm_scores, mask_img, instance_name, output_dir)
+            
+            XAI_METADATA["INSTANCES"][f"{instance_name}"] = dict()
+            XAI_METADATA["INSTANCES"][f"{instance_name}"]["label"] = label
+            XAI_METADATA["INSTANCES"][f"{instance_name}"]["timestamp"] = str(datetime.now())
+            save_metadata(XAI_METADATA, XAI_METADATA_PATH)
     
     os.system(f"cp {CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}/rgb_train_stats.pkl {XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
     EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["XAI_END_TIMESTAMP"] = str(datetime.now())

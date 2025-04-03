@@ -1,18 +1,20 @@
-import cv2, os, random
+import os, json
 import numpy as np
 import matplotlib.pyplot as plt
 
-from PIL import Image
 from copy import deepcopy
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import LinearSegmentedColormap
-from typing import Tuple
-from datetime import datetime
+from tqdm import tqdm
 
-from utils import get_train_instance_patterns, get_test_instance_patterns, save_metadata, get_page_dimensions
+from concurrent.futures import ThreadPoolExecutor
+from collections import defaultdict
+
+from utils import get_train_instance_patterns, get_test_instance_patterns
 
 from xai.explainers.lime_base_explainer import LimeBaseExplainer
-from xai.utils.image_utils import generate_instance_mask, get_crops_bbxs
+from xai.explainers.glime_binomial_explainer import GLimeBinomialExplainer
+from xai.utils.image_utils import create_image_grid
 
 XAI_ROOT = "./xai"
 
@@ -36,21 +38,22 @@ def get_instances_to_explain(dataset, source, class_to_idx, phase):
 
     return instances, labels
 
-def reduce_scores(base_mask, scores, reduction_method="mean", min_eval=10):
-    base_mask_array = np.array(base_mask)
-    idxs = np.unique(base_mask_array)
-    
+def reduce_and_normalize_scores(scores, reduction_method="mean"):
     reductions = {"mean": np.mean, "median": np.median}
     red_func = reductions.get(reduction_method, np.mean)
-    
+
     reduced_scores = dict()
-    for idx in idxs:
-        values = scores.get(idx, [])
-        if len(values) < min_eval: reduced_scores[idx] = [np.nan]
-        else: reduced_scores[idx] = red_func(values)
+    for k in scores.keys(): reduced_scores[k] = float(red_func(scores[k]))
     
-    return reduced_scores
-    
+    norm_scores = dict()
+    attributions = np.array(list(reduced_scores.values()))
+    min_val, max_val = np.min(attributions), np.max(attributions)
+    norm_attributions = 2 * (attributions - min_val) / (max_val - min_val) - 1
+
+    for k in reduced_scores.keys(): norm_scores[k] = float(norm_attributions[k])
+
+    return norm_scores
+
 def assign_attr_scores_to_mask(base_mask, scores):
     base_mask_array = np.array(deepcopy(base_mask)).astype(np.float32)
 
@@ -59,135 +62,96 @@ def assign_attr_scores_to_mask(base_mask, scores):
 
     return base_mask_array
 
-def custom_visualization(
-    norm_attr: np.ndarray,
-    min_eval: int,
-    output_name: str = '',
-    fig_size: Tuple[int, int] = (6, 6)
-    ):
+def setup_explainer(xai_algorithm, surrogate_model, model_type, model, num_samples, kernel_width, mean, std):
+    if xai_algorithm == "LimeBase":
+        return LimeBaseExplainer(model_type, model, surrogate_model, mean, std, num_samples, kernel_width)
+    elif xai_algorithm == "GLimeBinomial":
+        return GLimeBinomialExplainer(model_type, model, surrogate_model, mean, std, num_samples, kernel_width)
+
+def explain_instance(explainer, img, img_rows, img_cols, instance_name, label, mask, mask_rows, mask_cols, output_dir, crop_size, overlap, iters):
+    scores = dict()
+    for i in range(0, (mask_rows)*(mask_cols)): scores[i] = list()
     
-    fig, ax = plt.subplots(figsize=fig_size)
+    grid_dict = create_image_grid(img_rows, img_cols, crop_size, overlap)
+
+    with tqdm(total=img_rows*img_cols, desc="Crop Processing") as pbar:
+        for r in range(0, img_rows):
+            for c in range(0, img_cols):
+                coordinates = grid_dict[f"{r}_{c}"]
+                crop_img, crop_mask = img.crop(coordinates), mask.crop(coordinates)
+                crop_mask_array = np.array(crop_mask)
+                segments = np.array(crop_mask_array/100, dtype=np.uint16)
+
+                for i in range(0, iters):
+                    attr_scores = explainer.explain_instance(crop_img, segments, label)
+                    for k, v in attr_scores.items():
+                        if k not in scores: scores[k] = v
+                        else: scores[k].extend(v)
+                
+                pbar.update(1)
+
+    norm_scores = reduce_and_normalize_scores(scores)
+    with open(f"{output_dir}/{instance_name}_scores.json", "w") as f: json.dump(norm_scores, f, indent=4)
+
+    return norm_scores
+
+# def process_crop(explainer, crop_img, crop_mask, label, iters):
+#     crop_mask_array = np.array(crop_mask)
+#     segments = (crop_mask_array / 100).astype(np.uint16)
+    
+#     local_scores = defaultdict(list)
+#     for _ in range(iters):
+#         attr_scores = explainer.explain_instance(crop_img, segments, label)
+#         for k, v in attr_scores.items():
+#             local_scores[k].extend(v)
+    
+#     return local_scores
+
+# def explain_instance(explainer, img, img_rows, img_cols, instance_name, label, mask, 
+#                       mask_rows, mask_cols, output_dir, crop_size, overlap, iters):
+    
+#     scores = defaultdict(list)
+#     grid_dict = create_image_grid(img_rows, img_cols, crop_size, overlap)
+    
+#     with tqdm(total=img_rows * img_cols, desc="Crop Processing") as pbar, ThreadPoolExecutor() as executor:
+#         futures = []
+        
+#         for r in range(img_rows):
+#             for c in range(img_cols):
+#                 coordinates = grid_dict[f"{r}_{c}"]
+#                 crop_img, crop_mask = img.crop(coordinates), mask.crop(coordinates)
+                
+#                 futures.append(executor.submit(process_crop, explainer, crop_img, crop_mask, label, iters))
+            
+#         for future in futures:
+#             local_scores = future.result()
+#             for k, v in local_scores.items():
+#                 scores[k].extend(v)
+#             pbar.update(1)
+
+#     norm_scores = reduce_and_normalize_scores(scores)
+    
+#     with open(f"{output_dir}/{instance_name}_scores.json", "w") as f:
+#         json.dump(norm_scores, f, indent=4)
+
+#     return norm_scores
+
+def visualize_exp_outcome(scores, mask, instance_name, output_dir,):
+    mask_array = np.array(mask)/100
+    for k in scores.keys(): mask_array[mask_array == k] = scores[k]
+
+    fig, ax = plt.subplots(figsize=(6, 6))
     ax.axis("off")
-    
     cmap = LinearSegmentedColormap.from_list("RdWhGn", ["red", "white", "green"])
     cmap.set_bad(color='black')
-    
+
     vmin, vmax = -1, 1
-    heat_map = ax.imshow(norm_attr, cmap=cmap, vmin=vmin, vmax=vmax)
-    
+    heat_map = ax.imshow(mask_array, cmap=cmap, vmin=vmin, vmax=vmax)
+
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("bottom", size="5%", pad=0.1)
     fig.colorbar(heat_map, orientation="horizontal", cax=cax)
 
-    output_path = f"{output_name}_att_heat_map_{min_eval}.png"
-    
+    output_path = f"{output_dir}/{instance_name}_attr_map.png"
     fig.savefig(output_path, bbox_inches="tight", dpi=300)
     plt.close(fig)
-
-def get_rois(scores_matrix, page, mask, patch_width, patch_height, pagename, output_dir, num_rois: int = None, threshold = 0.5):
-    if not num_rois == None:
-        flat_matrix = scores_matrix.flatten()
-        flat_matrix_no_nan = np.unique(flat_matrix[np.logical_not(np.isnan(flat_matrix))])
-        threshold = np.sort(flat_matrix_no_nan)[-num_rois]
-
-    logical_matrix = np.greater_equal(scores_matrix, np.ones_like(scores_matrix)*threshold)
-    logical_matrix = logical_matrix.astype(np.uint8)
-
-    cnts = cv2.findContours(logical_matrix*255, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[-2]
-    
-    img = np.array(deepcopy(page))
-    im_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    im_rgb_backup = deepcopy(im_rgb)    
-    
-    for z, c in enumerate(cnts):
-        cv2.drawContours(im_rgb, c, -1, (0,255,0), 2)
-        # bottomLeftCornerOfText = (np.max(c[:,:,0]), np.min(c[:,:,1]))
-        # cv2.putText(im_rgb, str(z), bottomLeftCornerOfText, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2, 2)
-    
-    cv2.imwrite(f'{output_dir}/{pagename}_rois_t_{str(threshold)}.png', im_rgb)
-    
-    base_mask_array = np.array(deepcopy(mask)) + np.ones_like(scores_matrix)
-    roi_matrix = np.multiply(logical_matrix, base_mask_array)
-
-    diff_shapes = list(np.array(roi_matrix.shape) - np.array(im_rgb_backup.shape[:2]))
-    
-    if diff_shapes[0] > 0:
-        roi_matrix = roi_matrix[:-diff_shapes[0],:]
-    elif diff_shapes[0] < 0:
-       im_rgb_backup = im_rgb_backup[:diff_shapes[0],:] 
-
-    if diff_shapes[1] > 0:
-        roi_matrix = roi_matrix[:,:-diff_shapes[1]]
-    elif diff_shapes[1] < 0:
-       im_rgb_backup = im_rgb_backup[:,:diff_shapes[1]] 
-
-    roi_idxs = list(np.unique(roi_matrix))
-    roi_idxs.remove(0)
-    
-    for k, idx in enumerate(roi_idxs):
-        crop = im_rgb_backup[roi_matrix == idx].reshape(patch_width, patch_height, 3)
-        cv2.imwrite(f'{output_dir}/{pagename}_ROI_{str(k)}.png', crop)
-
-def return_erased_crops(num_patches, num_random_samples, dict_scores, mask_crop_array, crop):
-    lists_idxs = [
-        list(dict_scores.keys())[:num_patches],
-        list(dict_scores.keys())[-num_patches:]
-    ]
-
-    for j in range(num_random_samples):
-        lists_idxs.append(random.sample(list(dict_scores.keys()), num_patches))
-
-    list_erased_crops = []
-
-    for list_idxs in lists_idxs:
-        rois_to_mask = np.zeros_like(mask_crop_array)
-        for roi_idx in list_idxs:
-            super_pixel = mask_crop_array == roi_idx
-            rois_to_mask += super_pixel
-        
-        rois_to_mask = np.ones_like(rois_to_mask) - rois_to_mask
-        rois_to_mask_3d = rois_to_mask[:, :, None] * np.ones(3, dtype=int)[None, None, :]
-
-        crop_array = np.array(deepcopy(crop))
-        masked_crop_array = crop_array*rois_to_mask_3d
-        masked_crop_pil = Image.fromarray(np.uint8(masked_crop_array))
-
-        list_erased_crops.append(masked_crop_pil)
-
-    return list_erased_crops
-
-def setup_explainer(xai_algorithm, args, model_type, model, dir_name, mean, std, device):
-    explainer = None
-    
-    if xai_algorithm == "LimeBase":
-        explainer = LimeBaseExplainer(model_type=model_type, test_id=args.test_id, 
-            dir_name=dir_name, patch_size=(args.patch_width, args.patch_height), model=model,
-            surrogate_model=args.surrogate_model, mean=mean, std=std, device=device)
-    
-    return explainer
-
-def explain_instance(dataset, instance_path, label, explainer, crop_size, patch_width, patch_height, overlap, lime_iters, xai_metadata, xai_metadata_path, remove_patches):
-    instance_name = instance_path.split("/")[-1]
-    
-    if instance_name in xai_metadata["INSTANCES"]:
-        print(f"Skipping Instance '{instance_name}' with label '{label}': already explained!")
-        return
-    
-    print(f"Processing Instance '{instance_name}' with label '{label}'")
-    
-    mask_path = f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}.png"
-    if not os.path.exists(mask_path): 
-        generate_instance_mask(dataset, patch_width, patch_height)
-    
-    img, mask = Image.open(instance_path), Image.open(mask_path)
-    explainer.compute_superpixel_scores(img, mask, instance_name, label, lime_iters, crop_size, overlap)
-    explainer.visualize_superpixel_scores_outcomes(img, mask, instance_name, reduction_method="mean", min_eval=2)
-    
-    if remove_patches == "True":
-        crops_bbxs = get_crops_bbxs(img, crop_size, crop_size)
-        explainer.compute_masked_patches_explanation(img, mask, instance_name, label, crops_bbxs, reduction_method="mean", min_eval=10, num_samples_for_baseline=10)
-    
-    xai_metadata["INSTANCES"][f"{instance_name}"] = dict()
-    xai_metadata["INSTANCES"][f"{instance_name}"]["label"] = label
-    xai_metadata["INSTANCES"][f"{instance_name}"]["timestamp"] = str(datetime.now())
-    save_metadata(xai_metadata, xai_metadata_path)
