@@ -165,7 +165,7 @@ datasets/CEDAR_Letter/*
 datasets/CVL/*
 datasets/VatLat653/*
 datasets/VatLat5951b/*
-datasets/VatLat4220_4221a/*
+datasets/VatLat4221/*
 
 log/*.json
 
@@ -173,7 +173,7 @@ bvr_comparisons/tests/*
 
 classifiers/classifier_ResNet18/tests/*
 
-xai/data/*
+xai/masks/*
 xai/explanations/*
 xai/mask_images/*
 
