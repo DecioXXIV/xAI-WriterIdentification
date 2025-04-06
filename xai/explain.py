@@ -165,13 +165,13 @@ if __name__ == '__main__':
                 with open(f"{mask_dir}/dimensions.json", "r") as f: dimensions = json.load(f)
                 mask_rows, mask_cols = dimensions["mask_rows"], dimensions["mask_cols"]
 
-            norm_scores = None
+            instance_scores = None
             if f"{instance_name}_scores.pkl" not in os.listdir(f"{output_dir}"):
-                norm_scores = explain_instance(explainer, padded_img, img_rows, img_cols, instance_name, label, mask_img, mask_rows, mask_cols, output_dir, CROP_SIZE, OVERLAP, ITERS)
+                instance_scores = explain_instance(explainer, padded_img, img_rows, img_cols, instance_name, label, mask_img, mask_rows, mask_cols, output_dir, CROP_SIZE, OVERLAP, ITERS)
             else: 
-                with open(f"{output_dir}/{instance_name}_scores.json", "r") as f: norm_scores = json.load(f)
+                with open(f"{output_dir}/{instance_name}_scores.json", "r") as f: instance_scores = json.load(f)
             
-            visualize_exp_outcome(norm_scores, mask_img, instance_name, output_dir)
+            visualize_exp_outcome(instance_scores, mask_img, instance_name, output_dir)
             
             XAI_METADATA["INSTANCES"][f"{instance_name}"] = dict()
             XAI_METADATA["INSTANCES"][f"{instance_name}"]["label"] = label

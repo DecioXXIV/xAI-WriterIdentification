@@ -1,14 +1,9 @@
-import random, os, cv2, imageio, torch, json
+import os, json
 import pickle as pkl
 import numpy as np
 import torchvision.transforms as T
-import torchvision.transforms.functional as F
-from captum.attr import visualization as viz
 from PIL import Image
-from copy import deepcopy
 from torchvision.transforms import v2
-
-from utils import get_page_dimensions
 
 XAI_ROOT = "./xai"
 

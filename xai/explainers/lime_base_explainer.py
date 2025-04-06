@@ -2,7 +2,6 @@ import PIL, sklearn
 import numpy as np
 from copy import deepcopy
 from functools import partial
-from sklearn.utils import check_random_state
 from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
 
 from utils import get_batch_predict_function
@@ -35,7 +34,7 @@ class LimeBaseExplainer(object):
         fudged_image[:] = mean_int
 
         data, labels = self.data_labels(image, fudged_image, segments)
-
+        
         distances = sklearn.metrics.pairwise_distances(data, data[0].reshape(1, -1), metric=distance_metric).ravel()
         weights = self.kernel_fn(distances)
         labels_column = labels[:, label]
@@ -45,9 +44,7 @@ class LimeBaseExplainer(object):
 
         attr_scores = dict()
         for sp_name, sp_attr in zip(sp_names, self.model_regressor.coef_):
-            if sp_name not in attr_scores:
-                attr_scores[sp_name] = list()
-            attr_scores[sp_name].append(float(sp_attr))
+            attr_scores[sp_name] = float(sp_attr)
         
         return attr_scores
 
