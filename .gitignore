@@ -169,13 +169,11 @@ datasets/VatLat4221/*
 
 log/*.json
 
-bvr_comparisons/tests/*
-
 classifiers/classifier_ResNet18/tests/*
 
 xai/masks/*
 xai/explanations/*
-xai/mask_images/*
+xai/masked_images/*
 
 evals/bvr_comparisons/*
 evals/faithfulness/*
