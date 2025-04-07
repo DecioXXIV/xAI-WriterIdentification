@@ -20,7 +20,7 @@ def get_args():
     parser.add_argument("-batch_size", type=int, required=True)
     parser.add_argument("-opt", type=str, required=True)
     parser.add_argument("-lr", type=float, required=True)
-    parser.add_argument("-scheduler", type=str, default=None, choices=["cos_annealing_warmup", "cos_annealing"])
+    parser.add_argument("-scheduler", type=str, default=None, choices=["cos_annealing", "reduce_lr_on_plateau"])
     parser.add_argument("-train_replicas", type=int, required=True)
     parser.add_argument("-random_seed", type=int, default=None)
     parser.add_argument("-epochs", type=int, default=50)

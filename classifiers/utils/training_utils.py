@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from typing import List
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 
 from utils import save_metadata
 
@@ -105,48 +105,18 @@ def set_optimizer(optim_type, lr_, model, cp=None):
 
     return optimizer
 
-class LinearWarmupCosineAnnealingLR(torch.optim.lr_scheduler._LRScheduler):
-    def __init__(self, optimizer, warmup_epochs, max_epochs, min_lr, last_epoch=-1):
-        self.warmup_epochs = warmup_epochs
-        self.max_epochs = max_epochs
-        self.min_lr = min_lr
-        super().__init__(optimizer, last_epoch)
-        
-        cosine_last_epoch = max(self.warmup_epochs, self.last_epoch - self.warmup_epochs)
-        self.cosine_scheduler = CosineAnnealingLR(optimizer, T_max=max_epochs - warmup_epochs, eta_min=min_lr, last_epoch=cosine_last_epoch)
-    
-    def get_lr(self):
-        if self.last_epoch < self.warmup_epochs:
-            # Linear Warmup
-            return [base_lr * (self.last_epoch + 1) / self.warmup_epochs for base_lr in self.base_lrs]
-        else:
-            # Cosine Annealing
-            return self.cosine_scheduler.get_last_lr()
-    
-    def step(self):
-        super().step()
-        if self.last_epoch >= self.warmup_epochs: self.cosine_scheduler.step()
-    
-    def load_state_dict(self, state_dict):
-        cosine_state_dict = state_dict.pop("cosine_scheduler").state_dict()
-        self.cosine_scheduler.load_state_dict(cosine_state_dict)
-        super().load_state_dict(state_dict)
-
-
 def set_scheduler(optimizer, exp_metadata, cp=None):
     ft_params = exp_metadata["FINE_TUNING_HP"]
     scheduler, scheduler_type = None, ft_params['scheduler']
     
     max_epochs = ft_params['total_epochs']
-    warmup_epochs = int(max_epochs * 0.1)
-    warmup_start_lr = int(ft_params['learning_rate'] * 0.25)
     min_lr = int(ft_params['learning_rate'] * 0.025)
     last_epoch = exp_metadata.get("EPOCHS_COMPLETED", -1)
     
-    if scheduler_type == 'cos_annealing_warmup':
-        scheduler = LinearWarmupCosineAnnealingLR(optimizer, warmup_epochs, max_epochs, min_lr, last_epoch)
-    elif scheduler_type == 'cos_annealing':
+    if scheduler_type == 'cos_annealing':
         scheduler = CosineAnnealingLR(optimizer, max_epochs, min_lr, last_epoch)
+    elif scheduler_type == "reduce_lr_on_plateau":
+        scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=3)
     
     if scheduler is not None and cp is not None: scheduler.load_state_dict(cp["scheduler_state_dict"])
     
@@ -235,6 +205,7 @@ class Trainer():
         optimizer = set_optimizer(self.optim_type, self.lr_, self.model, self.last_cp)
         scheduler = set_scheduler(optimizer, self.exp_metadata, self.last_cp)
         criterion = nn.CrossEntropyLoss()
+        # criterion = nn.CrossEntropyLoss(label_smoothing=0.1) -> To Test!
         
         train_loss = load_history(f"{self.checkpoint_path}/../{self.test_name}train_loss.pkl")
         val_loss = load_history(f"{self.checkpoint_path}/../{self.test_name}val_loss.pkl")
@@ -273,7 +244,9 @@ class Trainer():
             save_history(f"{self.history_path}/{self.test_name}val_accuracy.pkl", val_acc)
             save_history(f"{self.history_path}/{self.test_name}learning_rates.pkl", learning_rates)
             
-            if scheduler is not None: scheduler.step()
+            if scheduler is not None: 
+                if isinstance(scheduler, CosineAnnealingLR): scheduler.step()
+                elif isinstance(scheduler, ReduceLROnPlateau): scheduler.step(val_epoch_loss)
             
             # Update metadata
             self.exp_metadata["EPOCHS_COMPLETED"] = epoch
