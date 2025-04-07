@@ -10,7 +10,7 @@ from tqdm import tqdm
 from utils import get_train_instance_patterns, get_test_instance_patterns
 
 from xai.explainers.lime_base_explainer import LimeBaseExplainer
-# from xai.explainers.glime_binomial_explainer import GLimeBinomialExplainer
+from xai.explainers.glime_binomial_explainer import GLimeBinomialExplainer
 from xai.utils.image_utils import create_image_grid
 
 XAI_ROOT = "./xai"
@@ -69,8 +69,8 @@ def assign_attr_scores_to_mask(base_mask, scores):
 def setup_explainer(xai_algorithm, surrogate_model, model_type, model, num_samples, kernel_width, mean, std):
     if xai_algorithm == "LimeBase":
         return LimeBaseExplainer(model_type, model, surrogate_model, mean, std, num_samples, kernel_width)
-    # elif xai_algorithm == "GLimeBinomial":
-    #     return GLimeBinomialExplainer(model_type, model, surrogate_model, mean, std, num_samples, kernel_width)
+    elif xai_algorithm == "GLimeBinomial":
+        return GLimeBinomialExplainer(model_type, model, surrogate_model, mean, std, num_samples, kernel_width)
 
 def explain_instance(explainer, img, img_rows, img_cols, instance_name, label, mask, mask_rows, mask_cols, output_dir, crop_size, overlap, iters):
     scores = dict()

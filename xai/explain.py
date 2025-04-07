@@ -179,7 +179,7 @@ if __name__ == '__main__':
             save_metadata(XAI_METADATA, XAI_METADATA_PATH)
     
     os.system(f"cp {CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}/rgb_train_stats.pkl {XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}/rgb_train_stats.pkl")
-    EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_METADATA"]["XAI_END_TIMESTAMP"] = str(datetime.now())
+    EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["XAI_END_TIMESTAMP"] = str(datetime.now())
     save_metadata(EXP_METADATA, EXP_METADATA_PATH)
     
     print("All the requested Instances have been explained!\n")
