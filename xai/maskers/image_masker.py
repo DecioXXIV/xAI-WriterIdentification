@@ -1,4 +1,4 @@
-import pickle, os
+import pickle, os, json
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
@@ -6,8 +6,6 @@ from datetime import datetime
 from PIL import Image
 from copy import deepcopy
 from torchvision import transforms as T
-
-from xai.utils.explanations_utils import reduce_scores
 
 from utils import get_vert_hor_cuts, save_metadata, load_metadata, get_page_dimensions
 
@@ -18,24 +16,26 @@ EVAL_ROOT = "./evals"
 
 ### Superclass ###
 class ImageMasker:    
-    def __init__(self, dataset: str, inst_set: str, instances: list, paths: list, 
-                test_id: str, exp_dir: str, mask_rate: float, mask_mode: str,
+    def __init__(self, test_id: str, inst_set: str, instances: list, paths: list, 
+                exp_dir: str, mask_rate: float, mask_mode: str,
                 patch_width: int, patch_height: int, xai_algorithm: str, 
-                xai_mode: str, exp_metadata: dict, save_patches=True, verbose=False):
-        self.dataset = dataset
+                xai_mode: str, surrogate_model: str, save_patches=True, verbose=False):
+        self.test_id = test_id
         self.inst_set = inst_set
         self.instances = instances
         self.paths = paths
-        self.test_id = test_id
         self.exp_dir = exp_dir
         self.mask_rate = mask_rate
         self.mask_mode = mask_mode
         self.patch_width, self.patch_height = patch_width, patch_height
         self.xai_algorithm = xai_algorithm
         self.xai_mode = xai_mode
-        self.exp_metadata = exp_metadata
+        self.surrogate_model = surrogate_model
         self.save_patches = save_patches
         self.verbose = verbose
+        
+        self.exp_metadata = load_metadata(f"{LOG_ROOT}/{self.test_id}-metadata.json")
+        self.dataset = self.exp_metadata["DATASET"]
         
         self.full_img_width, self.full_img_height = 0, 0
         self.final_width, self.final_height = get_page_dimensions(self.dataset)
@@ -48,66 +48,70 @@ class ImageMasker:
         Given the 'instance_name', calculates the coordinates of patches to be masked.
         Returns a list of patches: each of them with their respective coordinates and score.
         """
+        instance_directory = f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}/{instance_name}"
+        with open(f"{instance_directory}/padding_dict.json", "r") as f: padding_dict = json.load(f)
 
         filename_parts = instance_name.split("_")
         h_cut, v_cut = int(filename_parts[1]), int(filename_parts[2])
         
         left_b = v_cut * (self.final_width - self.h_overlap)
         top_b = h_cut * (self.final_height - self.v_overlap)
-
-        mask = Image.open(f"{XAI_ROOT}/masks/{self.dataset}_mask_{self.patch_width}x{self.patch_height}.png")
-        mask_array = np.array(mask)
         
-        with open(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}/{instance_name}/{instance_name}_scores.pkl", "rb") as f: 
-            base_scores = pickle.load(f)
-        reduced_scores = reduce_scores(mask, base_scores)
+        crop_size = self.exp_metadata["FINE_TUNING_HP"]["crop_size"]
+        overlap = self.exp_metadata[f"{self.xai_algorithm}_{self.xai_mode}_{self.surrogate_model}_METADATA"]["OVERLAP"]
+
+        mask = Image.open(f"{XAI_ROOT}/masks/{self.dataset}_mask_{self.patch_width}x{self.patch_height}_cs{crop_size}_overlap{overlap}/mask.png")
+        mask_width, mask_height = mask.size
+        mask = mask.crop((padding_dict["left"], padding_dict["top"], mask_width-padding_dict["right"], mask_height-padding_dict["bottom"]))
+        mask_array = np.array(mask, dtype=np.float64)
+        mask_array /= 100
+        
+        with open(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}/{instance_name}/{instance_name}_scores.json", "r") as f: 
+            scores = json.load(f)
 
         results = list()
 
-        for idx, score in reduced_scores.items():
-            if score != [np.nan]:
-                instance_patch = f"{instance_name}_patch{idx}"
+        for idx, score in scores.items():
+            instance_patch = f"{instance_name}_patch{idx}"
                 
-                positions = np.argwhere(mask_array == idx)
-                if positions.size > 0:
-                    top_b_patch, left_b_patch = positions.min(axis=0)
-                    bottom_b_patch, right_b_patch = positions.max(axis=0)
+            positions = np.argwhere(mask_array == float(idx))
+            if positions.size > 0:
+                top_b_patch, left_b_patch = positions.min(axis=0)
+                bottom_b_patch, right_b_patch = positions.max(axis=0)
                 
-                    left_b_patch += left_b
-                    top_b_patch += top_b
-                    right_b_patch += left_b
-                    bottom_b_patch += top_b
-                    
-                    results.append([instance_patch, score, left_b_patch, top_b_patch, right_b_patch, bottom_b_patch])
+                left_b_patch += left_b
+                top_b_patch += top_b
+                right_b_patch += left_b
+                bottom_b_patch += top_b
+                  
+                results.append([instance_patch, score, left_b_patch, top_b_patch, right_b_patch, bottom_b_patch])
         
-        print(f"Processed Instance: {instance_name}")
+        print(f"Patch Coordinates found for Instance: {instance_name}")
         return results
     
     def __call__(self):
         print(f"*** BEGINNING OF MASKING PROCESS FOR TEST: {self.test_id} ***")
         print(f"*** MODE = {self.mask_mode}, RATE = {self.mask_rate} ***")
         
-        DATASET = self.exp_metadata["DATASET"]
-        TEST_ID = self.exp_metadata["TEST_ID"]
         MODEL_TYPE = self.exp_metadata["MODEL_TYPE"]
-        EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
+        EXP_METADATA_PATH = f"{LOG_ROOT}/{self.test_id}-metadata.json"
                 
-        for inst, path in zip(self.instances, self.paths): 
+        for inst, path in zip(self.instances, self.paths):
             _ = self.mask_full_instance(inst, path)
             
-            inst_name, inst_type = inst[:-4], inst[-4:]
+            inst_name, inst_filetype = inst[:-4], inst[-4:]
             c = int(inst_name[0:4])
                         
-            src_path = f"{self.INSTANCE_DIR_MODE_RATE}/{inst_name}_masked_{self.mask_mode}_{self.mask_rate}{inst_type}"
+            src_path = f"{self.INSTANCE_DIR_MODE_RATE}/{inst_name}_masked_{self.mask_mode}_{self.mask_rate}{inst_filetype}"
 
             # 'train' Instances are masked to be then used for "ret" Experiments: 
-            if self.inst_set == "train": dest_dir = f"{DATASET_ROOT}/{DATASET}/{c}-{TEST_ID}_{MODEL_TYPE}_masked_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}"
+            if self.inst_set == "train": dest_dir = f"{DATASET_ROOT}/{self.dataset}/{c}-{self.test_id}_{MODEL_TYPE}_masked_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}"
 
             # 'test' Instances are masked to be then used for the "Faithfulness" evaluation
-            elif self.inst_set == "test": dest_dir = f"{EVAL_ROOT}/faithfulness/{TEST_ID}/test_set_masked_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}/{c}"
+            elif self.inst_set == "test": dest_dir = f"{EVAL_ROOT}/faithfulness/{self.test_id}/{self.xai_algorithm}_base_{self.surrogate_model}/test_set_masked_{self.mask_mode}_{self.mask_rate}/{c}"
 
             os.makedirs(dest_dir, exist_ok=True)
-            os.system(f"cp {src_path} {dest_dir}/{inst_name}{inst_type}")
+            os.system(f"cp {src_path} {dest_dir}/{inst_name}{inst_filetype}")
             
         print(f"*** END OF MASKING PROCESS FOR TEST: {self.test_id} ***\n")
         
@@ -120,10 +124,7 @@ class SaliencyMasker(ImageMasker):
         super().__init__(*args, **kwargs)
     
     def mask_full_instance(self, full_img_name, full_img_path):
-        """
-        This method performs the Saliency masking for a given instance.
-        """
-
+        """This method performs the Saliency masking for a given instance."""
         if self.verbose: print(f"Processing Saliency Masking for Instance: {full_img_name}")
         full_img = Image.open(full_img_path)
         
@@ -148,7 +149,8 @@ class SaliencyMasker(ImageMasker):
         
         if not os.path.exists(f"{self.INSTANCE_DIR}/masking_results.csv"):
             if self.verbose: print("PHASE 1 -> PATCHES MAPPING")
-            instances = [i for i in os.listdir(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}") if full_img_name in i]
+            directory = f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}"
+            instances = [i for i in os.listdir(directory) if full_img_name in i]
             
             with mp.Pool(mp.cpu_count()) as pool:
                 results = pool.map(self.find_patches_coordinates, instances)
@@ -177,7 +179,7 @@ class SaliencyMasker(ImageMasker):
                 right = df.iloc[row]["Coordinates_Right"] 
                 bottom = df.iloc[row]["Coordinates_Bottom"]
                 
-                patch = full_img.crop((left, top, right, bottom))
+                patch = full_img.crop((left, top, right+1, bottom+1))
                 patch.save(f"{self.INSTANCE_DIR}/removed_patches/{row+1}_{patch_id}_{score}.jpg")
         
         full_img_area = self.full_img_width * self.full_img_height   
@@ -194,7 +196,7 @@ class SaliencyMasker(ImageMasker):
         """
         
         check_array = np.ones(shape=(self.full_img_height, self.full_img_width))
-        masked_patches, masked_area, row  = 0, 0, 0
+        masked_patches, masked_area, row = 0, 0, 0
         end_condition = False
         while not end_condition:
             patch_id = df.iloc[row]["Instance_Patch"].split('_')[-1]
@@ -216,7 +218,8 @@ class SaliencyMasker(ImageMasker):
                     full_img_to_mask_tensor[channel, top:bottom+1, left:right+1] = mean_v
                 
                 check_array[top:bottom+1, left:right+1] = 0
-                row, masked_patches = row + 1, masked_patches + 1
+                masked_patches += 1
+                row += 1
                 
                 masked_area = np.count_nonzero(check_array == 0)
                 if (masked_area > full_img_area * self.mask_rate):
@@ -289,22 +292,16 @@ class RandomMasker(ImageMasker):
             right = left + self.patch_width - 1
             top = np.random.randint(0, self.full_img_height - self.patch_height + 1)
             bottom = top + self.patch_height - 1
-                    
-            if (right - left +1  != self.patch_width) or (bottom - top + 1 != self.patch_height):
-                if self.verbose: print(f"Skipped patch {idx} due to wrong dimensions")
-                idx += 1
-                continue
-            
-            else:
-                for channel, mean_v in enumerate(self.training_mean):
-                    full_img_to_mask_tensor[channel, top:bottom+1, left:right+1] = mean_v
                 
-                check_array[top:bottom+1, left:right+1] = 0
-                idx, masked_patches = idx + 1, masked_patches + 1
+            for channel, mean_v in enumerate(self.training_mean):
+                full_img_to_mask_tensor[channel, top:bottom+1, left:right+1] = mean_v
                 
-                masked_area = np.count_nonzero(check_array == 0)
-                if (masked_area > full_img_area * self.mask_rate):
-                    end_condition = True
+            check_array[top:bottom+1, left:right+1] = 0
+            idx, masked_patches = idx + 1, masked_patches + 1
+                
+            masked_area = np.count_nonzero(check_array == 0)
+            if (masked_area > full_img_area * self.mask_rate):
+                end_condition = True
                     
         full_img_masked_tensor_copy = deepcopy(full_img_to_mask_tensor)
         full_img_masked = T.ToPILImage()(full_img_masked_tensor_copy)
