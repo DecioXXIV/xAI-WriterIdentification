@@ -15,8 +15,7 @@ from torchvision.transforms import v2
 def compute_mean_and_std(root, save=True):
     types = ('*.png', '*.jpg')
     training_images = []
-    for files in types:
-        training_images.extend(glob.glob(root + '/*/' + files))	
+    for files in types: training_images.extend(glob.glob(root + '/*/' + files))	
 
     pixel_num = 0
     channel_sum, channel_sum_squared = np.zeros(3), np.zeros(3)
@@ -37,19 +36,20 @@ def compute_mean_and_std(root, save=True):
     rgb_std = list(bgr_std)[::-1]
 
     stats = [rgb_mean, rgb_std]
-    if save:
-        with open(root + os.sep + 'rgb_train_stats.pkl', 'wb') as f: pkl.dump(stats, f) 
+    if save: 
+        with open(f"{root}/rgb_train_stats.pkl", 'wb') as f: pkl.dump(stats, f) 
 
     return rgb_mean, rgb_std
 
-def load_rgb_mean_std(root):
+def load_rgb_mean_std(root, logger):
+    path = f"{root}/rgb_train_stats.pkl"
     try:
-        stats = list()
-        with open(root + os.sep + 'rgb_train_stats.pkl', 'rb') as f:
-            stats = pkl.load(f)
-        
+        with open(path, 'rb') as f: stats = pkl.load(f)
         mean_, std_ = stats[0], stats[1]
-    except: mean_, std_ = compute_mean_and_std(root = root)
+        logger.info(f"Training Set Mean & Std loaded from '{path}'")
+    except: 
+        logger.warning(f"Computing Training Set Mean & Std...")
+        mean_, std_ = compute_mean_and_std(root)
 
     return mean_, std_
 

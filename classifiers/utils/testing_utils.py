@@ -81,8 +81,6 @@ def produce_classification_reports(dl, device, model, output_dir, test_id):
     produce_confusion_matrix(labels, preds, target_names, idx_to_c, output_dir, test_id)
         
     report = classification_report(labels, preds, target_names=target_names)
-    with open(f'{output_dir}/Test_{test_id}_classification-report_test.txt', 'w') as f:
-        f.write(report)
+    with open(f'{output_dir}/Test_{test_id}_classification-report_test.txt', 'w') as f: f.write(report)
         
-    with open(f"{output_dir}/class_to_idx.pkl", "wb") as f:
-        pkl.dump(dataset.class_to_idx, f)
+    with open(f"{output_dir}/class_to_idx.pkl", "wb") as f: pkl.dump(dataset.class_to_idx, f)

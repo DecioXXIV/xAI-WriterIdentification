@@ -37,9 +37,9 @@ def retrieve_test_instances(root_dir, dataset, classes):
 ### ################### ###
 ### PRINCIPAL FUNCTIONS ###
 ### ################### ###
-def pair_confidence_test(baseline_id, retrained_id):
-    BASELINE_METADATA = load_metadata(f"{LOG_ROOT}/{baseline_id}-metadata.json")
-    RETRAINED_METADATA = load_metadata(f"{LOG_ROOT}/{retrained_id}-metadata.json")
+def pair_confidence_test(baseline_id, retrained_id, logger):
+    BASELINE_METADATA = load_metadata(f"{LOG_ROOT}/{baseline_id}-metadata.json", logger)
+    RETRAINED_METADATA = load_metadata(f"{LOG_ROOT}/{retrained_id}-metadata.json", logger)
     
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     DATASET = BASELINE_METADATA["DATASET"]
@@ -48,8 +48,8 @@ def pair_confidence_test(baseline_id, retrained_id):
     BASELINE_CLASSES, RETRAINED_CLASSES = BASELINE_METADATA["CLASSES"], RETRAINED_METADATA["CLASSES"]
     cp_base = get_model_base_checkpoint(B_MODEL_TYPE)
     
-    model_b, _ = load_model(B_MODEL_TYPE, len(BASELINE_CLASSES), "frozen", cp_base, "test", baseline_id, BASELINE_METADATA, DEVICE)
-    model_r, _ = load_model(R_MODEL_TYPE, len(RETRAINED_CLASSES), "frozen", cp_base, "test", retrained_id, RETRAINED_METADATA, DEVICE)
+    model_b, _ = load_model(B_MODEL_TYPE, len(BASELINE_CLASSES), "frozen", cp_base, "test", baseline_id, BASELINE_METADATA, DEVICE, logger)
+    model_r, _ = load_model(R_MODEL_TYPE, len(RETRAINED_CLASSES), "frozen", cp_base, "test", retrained_id, RETRAINED_METADATA, DEVICE, logger)
     
     root_dir = f"{EVALS_ROOT}/bvr_comparisons/{baseline_id}/VERSUS-{retrained_id}/confidence"
     os.makedirs(root_dir, exist_ok=True)
@@ -69,9 +69,9 @@ def pair_confidence_test(baseline_id, retrained_id):
     execute_pair_confidence_test(model_b, model_r, dl_b, dl_r, pages, DEVICE, root_dir, CLASSES)
     os.system(f"rm -r {root_dir}/test_instances")
     
-def pair_explanations_test(baseline_id, retrained_id, xai_algorithm, xai_mode):
-    BASELINE_METADATA = load_metadata(f"{LOG_ROOT}/{baseline_id}-metadata.json")
-    RETRAINED_METADATA = load_metadata(f"{LOG_ROOT}/{retrained_id}-metadata.json")
+def pair_explanations_test(baseline_id, retrained_id, xai_algorithm, xai_mode, logger):
+    BASELINE_METADATA = load_metadata(f"{LOG_ROOT}/{baseline_id}-metadata.json", logger)
+    RETRAINED_METADATA = load_metadata(f"{LOG_ROOT}/{retrained_id}-metadata.json", logger)
     
     DATASET = BASELINE_METADATA["DATASET"]
 
@@ -102,7 +102,7 @@ def pair_explanations_test(baseline_id, retrained_id, xai_algorithm, xai_mode):
         b_mask_with_scores, r_mask_with_scores  = assign_attr_scores_to_mask(mask, base_scores_reduced), assign_attr_scores_to_mask(mask, ret_scores_reduced)
 
         produce_explanation_comparison(root_dir, name, b_mask_with_scores, r_mask_with_scores)
-        print(f"Processed Test Instance: {name}")
+        logger.info(f"Processed Test Instance: {name}")
 
 ### ############################## ###
 ### PAIR CONFIDENCE TEST FUNCTIONS ###

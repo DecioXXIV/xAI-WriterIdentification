@@ -1,7 +1,7 @@
-import os
+import os, logging
 from argparse import ArgumentParser
 
-from utils import save_metadata, datasets2hi
+from utils import save_metadata, datasets2hi, get_logger
 
 LOG_ROOT = "./log"
 
@@ -22,13 +22,13 @@ def get_args():
     
     return parser.parse_args()
 
-def validate_and_process_args(args) -> dict:
+def validate_and_process_args(args, logger) -> dict:
     test_id = args.test_id
     
     # Check if the Metadata JSON file for the given 'test_id' already exists
     exp_metadata_path = os.path.join(LOG_ROOT, f"{test_id}-metadata.json")
-    if os.path.exists(exp_metadata_path): 
-        print(f"*** IN RELATION TO THE EXPERIMENT '{test_id}', THE METADATA FILE HAS ALREADY BEEN CREATED! ***\n")
+    if os.path.exists(exp_metadata_path):
+        logger.warning(f"*** IN RELATION TO THE EXPERIMENT '{test_id}', THE METADATA FILE HAS ALREADY BEEN CREATED! ***\n") 
         exit(1)
     
     classes = [int(c.strip()) for c in args.classes.split(',')]
@@ -38,13 +38,7 @@ def validate_and_process_args(args) -> dict:
     if len(classes) < len(class_types): raise Exception("There is at least one Class Type which cannot be attributed to any Class")
 
     # Build the Metadata dictionary for the current Experiment
-    exp_metadata = {
-        "TEST_ID": test_id,
-        "MODEL_TYPE": args.model_type,
-        "DATASET": args.dataset,
-        "CLASSES": dict(zip(classes, class_types))
-    }
-
+    exp_metadata = {"TEST_ID": test_id, "MODEL_TYPE": args.model_type, "DATASET": args.dataset, "CLASSES": dict(zip(classes, class_types))}
     return exp_metadata
 
 ### #### ###
@@ -55,11 +49,12 @@ if __name__ == '__main__':
     args = get_args()
     TEST_ID = args.test_id
     EXP_METADATA_PATH = os.path.join(LOG_ROOT, f"{TEST_ID}-metadata.json")
+    logger = get_logger(TEST_ID)
     
     try:
-        EXP_METADATA = validate_and_process_args(args)
+        EXP_METADATA = validate_and_process_args(args, logger)
         save_metadata(EXP_METADATA, EXP_METADATA_PATH)
-        print(f"*** METADATA SUCCESSFULLY CREATED FOR: {TEST_ID} ***\n")
+        logger.info(f"*** METADATA SUCCESSFULLY CREATED FOR: {TEST_ID} ***\n")
     except Exception as e: 
-        print(f"Error on Metadata creation for Experiment: {TEST_ID}")
-        print(f"Details: {e}")
+        logger.error(f"Error on Metadata creation for Experiment: {TEST_ID}")
+        logger.error(f"Details: {e}")

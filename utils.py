@@ -1,4 +1,5 @@
-import json, os, torch
+import os, json, logging, torch
+from rich.logging import RichHandler
 from argparse import ArgumentTypeError
 from torchvision import transforms as T
 from torch.nn import functional as F
@@ -16,37 +17,59 @@ def str2bool(value):
     elif value.lower() in ('no', 'false', 'f', 'n', '0'): return False
     else: raise ArgumentTypeError("Boolean value expected (true/false).")
 
-def xaiaug2str(value):
+def xaiaug2str(value: str):
     if value.lower() in ("pi", "protect and inform", "protect_inform"): return "pi"
     elif value.lower() in ("lr", "lime reds", "lime_reds"): return "lr"
     elif value.lower() in ("wo", "world opening", "world_opening"): return "wo"
     elif value.lower() in ("rand", "random"): return "rand"
     else: raise ArgumentTypeError("Unrecognized XAI Augmentation Mode")
 
-def datasets2hi(value):
+def datasets2hi(value: str):
     valid_datasets = os.listdir(DATASETS_ROOT)
     valid_datasets.remove("__pycache__")
     valid_datasets.remove("__init__.py")
     valid_datasets.remove("prepare_pages.py")
-    valid_datasets.remove("utils.py")
+    valid_datasets.remove("dataset_utils.py")
     
+    value = value.strip()
     if value in valid_datasets: return value
     else: raise ArgumentTypeError("Unrecognized Dataset")
 
 ### ################# ###
 ### METADATA HANDLING ###
 ### ################# ###
-def load_metadata(metadata_path: str) -> dict:
+def load_metadata(metadata_path: str, logger: logging.Logger) -> dict:
     try:
         with open(metadata_path, 'r') as jf: return json.load(jf)
-    except json.JSONDecodeError as e: 
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error in file '{metadata_path}': {e}")
         raise ValueError(f"Error occurred while decoding JSON file '{metadata_path}': {e}")
-    except Exception as e: 
+    except Exception as e:
+        logger.error(f"Error occurred while reading metadata file '{metadata_path}': {e}") 
         raise FileNotFoundError(f"Error occurred while reading metadata file '{metadata_path}': {e}")
 
 def save_metadata(metadata: dict, metadata_path: str):
     with open(metadata_path, 'w') as jf:
         json.dump(metadata, jf, indent=4)
+
+def get_logger(test_id: str):
+    logger = logging.getLogger(f"logger_{test_id}")
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    
+    formatter = logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    
+    filepath = f"./log/{test_id}.log"
+    file_handler = logging.FileHandler(filepath, mode='a')
+    file_handler.setFormatter(formatter)
+    
+    rich_handler = RichHandler(rich_tracebacks=True, markup=True)
+    rich_handler.setFormatter(formatter)
+    
+    logger.addHandler(file_handler)
+    logger.addHandler(rich_handler)
+    
+    return logger
 
 ### ################ ###
 ### DATASET HANDLING ###

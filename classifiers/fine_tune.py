@@ -3,7 +3,7 @@ import numpy as np
 from datetime import datetime
 from argparse import ArgumentParser
 
-from utils import str2bool, load_metadata, save_metadata, get_model_base_checkpoint
+from utils import str2bool, load_metadata, save_metadata, get_model_base_checkpoint, get_logger
 
 from classifiers.utils.dataloader_utils import Train_DataLoader, Test_DataLoader, load_rgb_mean_std
 from classifiers.utils.training_utils import Trainer, plot_metric, plot_learning_rates
@@ -35,10 +35,14 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
     TEST_ID = args.test_id
+    logger = get_logger(TEST_ID)
     
     EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
-    try: EXP_METADATA = load_metadata(EXP_METADATA_PATH)
-    except: raise FileNotFoundError(f"Metadata file '{EXP_METADATA_PATH}' not found!")
+    try: EXP_METADATA = load_metadata(EXP_METADATA_PATH, logger)
+    except Exception as e:
+        logger.error(f"Failed to load Metadata for experiment {TEST_ID}")
+        logger.error(f"Details: {e}")
+        exit(1)
     
     MODEL_TYPE = EXP_METADATA["MODEL_TYPE"]
     DATASET = EXP_METADATA["DATASET"]
@@ -62,31 +66,31 @@ if __name__ == '__main__':
     
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    if "FINE_TUNING_TIMESTAMP" in EXP_METADATA:
-        print(f"*** IN RELATION TO THE EXPERIMENT '{TEST_ID}', THE MODEL HAS ALREADY BEEN FINE-TUNED! ***\n")
-    
+    if "FINE_TUNING_TIMESTAMP" in EXP_METADATA: 
+        logger.warning(f"*** IN RELATION TO THE EXPERIMENT '{TEST_ID}', THE MODEL HAS ALREADY BEEN FINE-TUNED! ***")
     else:
-        print("*** BEGINNING OF FINE-TUNING PROCESS ***")
+        logger.info(f"*** Experiment: {TEST_ID} -> BEGINNING OF FINE-TUNING PROCESS ***")
         
         BASE_ID, RET_ID = None, None
         try: BASE_ID, RET_ID = TEST_ID.split(':')
         except: BASE_ID = TEST_ID
         
-        EXP_METADATA["FINE_TUNING_HP"] = {"batch_size": BATCH_SIZE, "optimizer": OPT, "learning_rate": LR, 
-                                          "scheduler": SCHEDULER, "crop_size": CROP_SIZE, "train_replicas": TRAIN_REPLICAS,
-                                          "random_seed": RANDOM_SEED, "total_epochs": EPOCHS, "ft_mode": FT_MODE}
-        save_metadata(EXP_METADATA, EXP_METADATA_PATH)
+        if "FINE_TUNING_HP" not in EXP_METADATA:
+            EXP_METADATA["FINE_TUNING_HP"] = {"batch_size": BATCH_SIZE, "optimizer": OPT, "learning_rate": LR, 
+                                            "scheduler": SCHEDULER, "crop_size": CROP_SIZE, "train_replicas": TRAIN_REPLICAS,
+                                            "random_seed": RANDOM_SEED, "total_epochs": EPOCHS, "ft_mode": FT_MODE}
+            save_metadata(EXP_METADATA, EXP_METADATA_PATH)
         
         create_directories(EXP_DIR, CLASSES_DATA.keys())
         
         if "FT_DATASET_PREP_TIMESTAMP" not in EXP_METADATA:
-            print("PHASE 1 -> DATASET CREATION...")
+            logger.info("PHASE 1 -> DATASET CREATION...")
             
             for c, c_type in CLASSES_DATA.items():
                 class_source = None
                 
                 if "ret" in TEST_ID:
-                    print(f"'{TEST_ID}' is a 'ret' experiment: training Crops will be extracted from the 'masked' instances!")
+                    logger.info(f"'{TEST_ID}' is a 'ret' experiment: training Crops will be extracted from the 'masked' instances!")
                     class_source = f"{SOURCE_DATA_DIR}/{c}-{BASE_ID}_{MODEL_TYPE}_{c_type}"
                     
                 else: class_source = f"{SOURCE_DATA_DIR}/{c}"
@@ -97,16 +101,16 @@ if __name__ == '__main__':
                 EXP_METADATA["FINE_TUNING_HP"]["n_crops_per_test_instance"] = n_crops_per_test_instance
                 save_metadata(EXP_METADATA, EXP_METADATA_PATH)  
             
-            print(f"Base training Crops Extracted!")
+            logger.info("Base training Crops Extracted!")
             
             if "augmented" in TEST_ID:
                 for c in CLASSES_DATA.keys(): 
                     retrieve_augmentation_crops(TEST_ID, MODEL_TYPE, c)
-                print(f"'{TEST_ID}' is an 'augmented' experiment: XAI-driven augmented Crops have been added to the Dataset!")
+                logger.info(f"'{TEST_ID}' is an 'augmented' experiment: XAI-driven augmented Crops have been added to the Dataset!")
                 
-            mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}/train_pre_aug")
+            mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}/train_pre_aug", logger)
             for c in CLASSES_DATA.keys():
-                print(f"Applying image augmentations to base training Crops of class '{c}'...")
+                logger.info(f"Applying image augmentations to base training Crops of class '{c}'...")
                 augment_train_crops_parallel(EXP_DIR, c, mean_, std_)
             os.rename(f"{EXP_DIR}/train_pre_aug/rgb_train_stats.pkl", f"{EXP_DIR}/rgb_train_stats.pkl")
             
@@ -114,11 +118,12 @@ if __name__ == '__main__':
             EXP_METADATA["FINE_TUNING_HP"]["std"] = std_
             EXP_METADATA["FT_DATASET_PREP_TIMESTAMP"] = str(datetime.now())
             save_metadata(EXP_METADATA, EXP_METADATA_PATH)
-            print("...Dataset Created!\n")
+            logger.info("...Dataset Created!\n")
         
-        else: print("Skipping PHASE 1 (Dataset Creation): it's already available!\n")
+        else:
+            logger.info("Skipping PHASE 1 (Dataset Creation): it's already available!\n") 
         
-        print("PHASE 2 -> MODEL FINE-TUNING...")
+        logger.info("PHASE 2 -> MODEL FINE-TUNING...")
         os.makedirs(f"{OUTPUT_DIR}/checkpoints", exist_ok=True)
         
         # For Experiment Reproducibility
@@ -126,21 +131,21 @@ if __name__ == '__main__':
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
         
-        mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}")
+        mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}", logger)
         train_ds = Train_DataLoader(directory=f"{EXP_DIR}/train", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_, shuffle=True)
         val_ds = Test_DataLoader(directory=f"{EXP_DIR}/val", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_)
         _, t_dl = train_ds.load_data()
         _, v_dl = val_ds.load_data()
         
-        model, last_cp = load_model(MODEL_TYPE, len(CLASSES_DATA), FT_MODE, CP_BASE, "train", TEST_ID, EXP_METADATA, DEVICE)
+        model, last_cp = load_model(MODEL_TYPE, len(CLASSES_DATA), FT_MODE, CP_BASE, "train", TEST_ID, EXP_METADATA, DEVICE, logger)
         if "EPOCHS_COMPLETED" in EXP_METADATA:
             epochs_completed = EXP_METADATA["EPOCHS_COMPLETED"]
             EPOCHS -= epochs_completed
         
         pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        print(f'Number of trainable parameters: {pytorch_total_params}')
+        logger.info(f'Number of trainable parameters: {pytorch_total_params}')
         
-        trainer = Trainer(model=model, t_set=t_dl, v_set=v_dl, DEVICE=DEVICE, model_path=OUTPUT_DIR, history_path=OUTPUT_DIR, exp_metadata=EXP_METADATA, last_cp=last_cp)
+        trainer = Trainer(model=model, t_set=t_dl, v_set=v_dl, DEVICE=DEVICE, model_path=OUTPUT_DIR, history_path=OUTPUT_DIR, exp_metadata=EXP_METADATA, last_cp=last_cp, logger=logger)
         trainer()
         
         EXP_METADATA["FINE_TUNING_TIMESTAMP"] = str(datetime.now())
@@ -148,18 +153,18 @@ if __name__ == '__main__':
         for metric in ["loss", "accuracy"]: plot_metric(metric, OUTPUT_DIR, TEST_ID)
         plot_learning_rates(OUTPUT_DIR, TEST_ID)
         torch.cuda.empty_cache()
-        print("...Model Fine-Tuning completed!\n")
+        logger.info("...Model Fine-Tuning completed!\n")
 
     if "MODEL_TESTING_TIMESTAMP" in EXP_METADATA:
-        print(f"*** IN RELATION TO THE EXPERIMENT '{TEST_ID}', THE MODEL HAS ALREADY BEEN TESTED! ***\n")
+        logger.warning(f"*** IN RELATION TO THE EXPERIMENT '{TEST_ID}', THE MODEL HAS ALREADY BEEN TESTED! ***")
 
     else:
-        print("PHASE 3 -> MODEL TESTING...")
+        logger.info("PHASE 3 -> MODEL TESTING...")
         mean_, std_ = EXP_METADATA["FINE_TUNING_HP"]["mean"], EXP_METADATA["FINE_TUNING_HP"]["std"]
-        test_fine_tuned_model(TEST_ID, EXP_METADATA, MODEL_TYPE, CROP_SIZE, OUTPUT_DIR, CLASSES_DATA, CP_BASE, mean_, std_)
-        print("...Testing reports are now available!\n")
+        test_fine_tuned_model(TEST_ID, EXP_METADATA, MODEL_TYPE, CROP_SIZE, OUTPUT_DIR, CLASSES_DATA, CP_BASE, mean_, std_, logger)
+        logger.info("...Testing reports are now available!\n")
      
-        print("PHASE 4 -> DATA & METADATA HANDLING...")
+        logger.info("PHASE 4 -> DATA & METADATA HANDLING...")
         if not KEEP_CROPS:
             os.system(f"rm -r {EXP_DIR}/train_pre_aug")
             os.system(f"rm -r {EXP_DIR}/train")
@@ -170,4 +175,4 @@ if __name__ == '__main__':
         save_metadata(EXP_METADATA, EXP_METADATA_PATH)
         
         torch.cuda.empty_cache()
-        print("*** END OF FINE-TUNING PROCESS ***\n")
+        logger.info(f"*** Experiment: {TEST_ID} -> END OF FINE-TUNING PROCESS ***\n")
