@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from utils import load_metadata
+from utils import load_metadata, get_logger
 
 from xai.maskers.image_masker import SaliencyMasker, RandomMasker
 from xai.utils.mask_utils import setup_masking_process
@@ -11,7 +11,7 @@ def get_args():
     parser = ArgumentParser()
     parser.add_argument("-test_id", type=str, required=True)
     parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase", "GLimeBinomial"])
-    parser.add_argument("-xai_mode", type=str, required=True, choices=["base", "counterfactual_top_class"])
+    parser.add_argument("-xai_mode", type=str, default="base")
     parser.add_argument("-surrogate_model", type=str, required=True, choices=["LinReg", "Ridge", "Lasso", "ElasticNet"])
     parser.add_argument("-instances", type=str, required=True, choices=["train", "test"])
     parser.add_argument("-mask_rate", type=float, required=True)
@@ -26,10 +26,12 @@ if __name__ == '__main__':
     args = get_args()
     TEST_ID = args.test_id
     EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
+    logger = get_logger(TEST_ID)
 
-    try: EXP_METADATA = load_metadata(EXP_METADATA_PATH)
+    try: EXP_METADATA = load_metadata(EXP_METADATA_PATH, logger)
     except Exception as e:
-        print(e)
+        logger.error(f"Failed to load Metadata for experiment {TEST_ID}")
+        logger.error(f"Details: {e}")
         exit(1)
     
     XAI_ALGORITHM = args.xai_algorithm
@@ -40,11 +42,11 @@ if __name__ == '__main__':
     MASK_MODE = args.mask_mode
         
     if f"{XAI_ALGORITHM}_{XAI_MODE}_{SURROGATE_MODEL}_METADATA" not in EXP_METADATA:
-        print(f"*** IN RELATION TO THE '{TEST_ID}' EXPERIMENT, THE XAI ALGORITHM '{XAI_ALGORITHM}' WITH MODE '{XAI_MODE}' HAS NOT BEEN EMPLOYED YET! ***\n")
+        logger.warning(f"*** IN RELATION TO THE '{TEST_ID}' EXPERIMENT, THE XAI ALGORITHM '{XAI_ALGORITHM}' WITH MODE '{XAI_MODE}' HAS NOT BEEN EMPLOYED YET! ***\n")
         exit(1)
     
     if f"MASK_PROCESS_{INSTANCE_SET}_{MASK_MODE}_{MASK_RATE}_{XAI_ALGORITHM}_{XAI_MODE}_{SURROGATE_MODEL}_END_TIMESTAMP" in EXP_METADATA:
-        print(f"*** IN RELATION TO ['{TEST_ID}' EXPERIMENT, '{XAI_ALGORITHM}-{XAI_MODE}-{SURROGATE_MODEL}' XAI ALGORITHM, '{MASK_MODE}' MODE, '{MASK_RATE}' MASK RATE], THE MASKING PROCESS HAS ALREADY BEEN PERFORMED! ***\n")
+        logger.warning(f"*** IN RELATION TO ['{TEST_ID}' EXPERIMENT, '{XAI_ALGORITHM}-{XAI_MODE}-{SURROGATE_MODEL}' XAI ALGORITHM, '{MASK_MODE}' MODE, '{MASK_RATE}' MASK RATE], THE MASKING PROCESS HAS ALREADY BEEN PERFORMED! ***\n")
         exit(1)
     
     DATASET = EXP_METADATA["DATASET"]
@@ -59,10 +61,10 @@ if __name__ == '__main__':
     if MASK_MODE == "saliency":
         masker = SaliencyMasker(test_id=TEST_ID, inst_set=INSTANCE_SET, instances=instances, paths=paths, 
             exp_dir=EXP_DIR, mask_rate=MASK_RATE, mask_mode=MASK_MODE, patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
-            xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, surrogate_model=SURROGATE_MODEL, save_patches=True, verbose=True)
+            xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, surrogate_model=SURROGATE_MODEL, logger=logger, save_patches=True, verbose=True)
     elif MASK_MODE == "random":
         masker = RandomMasker(test_id=TEST_ID, inst_set=INSTANCE_SET, instances=instances, paths=paths, 
             exp_dir=EXP_DIR, mask_rate=MASK_RATE, mask_mode=MASK_MODE, patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
-            xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, surrogate_model=SURROGATE_MODEL, save_patches=True, verbose=True)
+            xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, surrogate_model=SURROGATE_MODEL, logger=logger, save_patches=True, verbose=True)
     
     masker()

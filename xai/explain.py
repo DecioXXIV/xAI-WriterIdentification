@@ -3,7 +3,7 @@ from datetime import datetime
 from argparse import ArgumentParser
 from PIL import Image
 
-from utils import load_metadata, save_metadata, get_model_base_checkpoint
+from utils import load_metadata, save_metadata, str2bool, get_model_base_checkpoint, get_logger
 from classifiers.utils.fine_tune_utils import load_model
 
 from xai.utils.image_utils import produce_padded_page, generate_mask
@@ -24,8 +24,9 @@ def get_args():
     parser.add_argument("-surrogate_model", type=str, required=True, choices=["LinReg", "Ridge", "Lasso", "ElasticNet"])
     parser.add_argument("-num_samples", type=int, default=100)
     parser.add_argument("-kernel_width", type=float, default=None)
-    parser.add_argument("-mode", type=str, default="base", choices=["base", "counterfactual_top_class"])
+    parser.add_argument("-mode", type=str, default="base")
     parser.add_argument("-iters", type=int, default=1)
+    parser.add_argument("-save_samples", type=str2bool, default=False)
 
     return parser.parse_args()
 
@@ -37,10 +38,12 @@ if __name__ == '__main__':
     args = get_args()
     TEST_ID = args.test_id
     EXP_METADATA_PATH = f"{LOG_ROOT}/{TEST_ID}-metadata.json"
+    logger = get_logger(TEST_ID)
     
-    try: EXP_METADATA = load_metadata(EXP_METADATA_PATH)
+    try: EXP_METADATA = load_metadata(EXP_METADATA_PATH, logger)
     except Exception as e:
-        print(e)
+        logger.error(f"Failed to load Metadata for experiment {TEST_ID}")
+        logger.error(f"Details: {e}")
         exit(1)
         
     PATCH_WIDTH, PATCH_HEIGHT = args.patch_width, args.patch_height
@@ -55,6 +58,7 @@ if __name__ == '__main__':
         elif XAI_ALGORITHM == "GLimeBinomial": KERNEL_WIDTH = 0.5
     MODE = args.mode
     ITERS = args.iters
+    SAVE_SAMPLES = args.save_samples
 
     DATASET = EXP_METADATA["DATASET"]
     MODEL_TYPE = EXP_METADATA["MODEL_TYPE"]
@@ -67,14 +71,14 @@ if __name__ == '__main__':
     start, dir_name = None, None
     if f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA" in EXP_METADATA:
         if "XAI_END_TIMESTAMP" in EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]:
-            print(f"*** IN RELATION TO THE EXPERIMENT '{TEST_ID}', THE MODEL PREDICTIONS HAVE ALREADY BEEN EXPLAINED WITH '{XAI_ALGORITHM}', WITH MODE '{MODE}' AND USING '{SURROGATE_MODEL}' AS SURROGATE MODEL! ***\n")
+            logger.warning(f"*** IN RELATION TO THE EXPERIMENT '{TEST_ID}', THE MODEL PREDICTIONS HAVE ALREADY BEEN EXPLAINED WITH '{XAI_ALGORITHM}', WITH MODE '{MODE}' AND USING '{SURROGATE_MODEL}' AS SURROGATE MODEL! ***\n")
             exit(1)
         
         start = EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["XAI_START_TIMESTAMP"]
         dir_name = EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["DIR_NAME"]
         
         XAI_METADATA_PATH = f"{XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}/{TEST_ID}-xai_metadata.json"
-        XAI_METADATA = load_metadata(XAI_METADATA_PATH)
+        XAI_METADATA = load_metadata(XAI_METADATA_PATH, logger)
         
     else:
         start = datetime.now().strftime("%Y.%m.%d_%H.%M.%S")
@@ -97,18 +101,20 @@ if __name__ == '__main__':
         XAI_METADATA_PATH = f"{XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}/{TEST_ID}-xai_metadata.json"
         save_metadata(XAI_METADATA, XAI_METADATA_PATH) 
     
-    print("*** BEGINNING OF EXPLAINABILITY PROCESS ***")
+    logger.info(f"*** Experiment: {TEST_ID} -> BEGINNING OF EXPLAINABILITY PROCESS ***")
     
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    if DEVICE == "cuda": print("Device:", torch.cuda.get_device_name(0))
-    else: print("Device: CPU")
+    if DEVICE == "cuda": logger.info(f"Device: {torch.cuda.get_device_name(0)}")
+    else: logger.info("Device: CPU")
+
     
-    model, _ = load_model(MODEL_TYPE, num_classes, "frozen", cp_base, "test", TEST_ID, EXP_METADATA, DEVICE)
-    print("Model Loaded!")
-    print("Classes:", classes)
+    model, _ = load_model(MODEL_TYPE, num_classes, "frozen", cp_base, "test", TEST_ID, EXP_METADATA, DEVICE, logger)
+    logger.info("Model Loaded!")
+    logger.info(f"Classes: {classes}")
     
     mean, std = EXP_METADATA["FINE_TUNING_HP"]["mean"], EXP_METADATA["FINE_TUNING_HP"]["std"]
     
+    logger.info(f"Setting-up '{XAI_ALGORITHM}' as Explainer")
     explainer = setup_explainer(XAI_ALGORITHM, SURROGATE_MODEL, MODEL_TYPE, model, NUM_SAMPLES, KERNEL_WIDTH, mean, std)
     
     BASE_ID, RET_ID = None, None
@@ -147,10 +153,10 @@ if __name__ == '__main__':
         instance_type = instance_path.split("/")[-1][-4:]
         
         if instance_name in XAI_METADATA["INSTANCES"]:
-            print(f"Skipping instance '{instance_name}' with label '{label}': already explained!")
+            logger.warning(f"Skipping instance '{instance_name}' with label '{label}': already explained!")
         
         else:
-            print(f"Processing Instance '{instance_name}' with label '{label}'")
+            logger.info(f"Processing Instance '{instance_name}' with label '{label}'")
             output_dir = f"{XAI_ROOT}/explanations/patches_{PATCH_WIDTH}x{PATCH_HEIGHT}_removal/{dir_name}/{instance_name}"
             os.makedirs(output_dir, exist_ok=True)
             img = Image.open(instance_path)
@@ -166,8 +172,13 @@ if __name__ == '__main__':
                 mask_rows, mask_cols = dimensions["mask_rows"], dimensions["mask_cols"]
 
             instance_scores = None
+            mean_masked_patches = None
             if f"{instance_name}_scores.pkl" not in os.listdir(f"{output_dir}"):
-                instance_scores = explain_instance(explainer, padded_img, img_rows, img_cols, instance_name, label, mask_img, mask_rows, mask_cols, output_dir, CROP_SIZE, OVERLAP, ITERS)
+                instance_scores, all_maskings, total_samples = explain_instance(explainer, padded_img, img_rows, img_cols, instance_name, label, mask_img, mask_rows, mask_cols, output_dir, CROP_SIZE, OVERLAP, ITERS)
+                mean_masked_patches = float(all_maskings.sum() / len(all_maskings))
+                if SAVE_SAMPLES:
+                    with open(f"{output_dir}/{instance_name}_samples.pkl", "wb") as f: pickle.dump(total_samples, f, protocol=pickle.HIGHEST_PROTOCOL)
+                
             else: 
                 with open(f"{output_dir}/{instance_name}_scores.json", "r") as f: instance_scores = json.load(f)
             
@@ -175,6 +186,7 @@ if __name__ == '__main__':
             
             XAI_METADATA["INSTANCES"][f"{instance_name}"] = dict()
             XAI_METADATA["INSTANCES"][f"{instance_name}"]["label"] = label
+            if mean_masked_patches is not None: XAI_METADATA["INSTANCES"][f"{instance_name}"]["mean_masked_patches"] = mean_masked_patches
             XAI_METADATA["INSTANCES"][f"{instance_name}"]["timestamp"] = str(datetime.now())
             save_metadata(XAI_METADATA, XAI_METADATA_PATH)
     
@@ -182,5 +194,5 @@ if __name__ == '__main__':
     EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["XAI_END_TIMESTAMP"] = str(datetime.now())
     save_metadata(EXP_METADATA, EXP_METADATA_PATH)
     
-    print("All the requested Instances have been explained!\n")
-    print("*** END OF EXPLAINABILITY PROCESS ***\n")
+    logger.info("All the requested Instances have been explained!\n")
+    logger.info(f"*** Experiment: {TEST_ID} -> END OF EXPLAINABILITY PROCESS ***\n")

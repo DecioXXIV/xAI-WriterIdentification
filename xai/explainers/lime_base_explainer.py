@@ -33,7 +33,7 @@ class LimeBaseExplainer(object):
         mean_int = [255*m for m in self.mean]
         fudged_image[:] = mean_int
 
-        data, labels = self.data_labels(image, fudged_image, segments)
+        data, labels, n_maskings = self.data_labels(image, fudged_image, segments)
         
         distances = sklearn.metrics.pairwise_distances(data, data[0].reshape(1, -1), metric=distance_metric).ravel()
         weights = self.kernel_fn(distances)
@@ -46,7 +46,7 @@ class LimeBaseExplainer(object):
         for sp_name, sp_attr in zip(sp_names, self.model_regressor.coef_):
             attr_scores[sp_name] = float(sp_attr)
         
-        return attr_scores
+        return attr_scores, n_maskings, data
 
     def data_labels(self, image, fudged_image, segments):
         n_features = np.unique(segments).shape[0]
@@ -55,10 +55,12 @@ class LimeBaseExplainer(object):
         data[0, :] = 1
 
         samples = list()
+        n_maskings = list()
         sp_names = np.unique(segments)
         for row in data:
             sample = deepcopy(image)
             sp_idxs_to_zero = np.where(row==0)[0]
+            n_maskings.append(len(sp_idxs_to_zero))
             mask = np.zeros(segments.shape).astype(bool)
             for idx in sp_idxs_to_zero: mask[np.where(segments == sp_names[idx])] = True
             sample[mask] = fudged_image[mask]
@@ -66,4 +68,4 @@ class LimeBaseExplainer(object):
         
         preds = self.classifier_fn(self.model, samples, self.mean, self.std)
 
-        return data, preds
+        return data, preds, n_maskings

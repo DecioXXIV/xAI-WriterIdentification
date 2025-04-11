@@ -19,7 +19,7 @@ class ImageMasker:
     def __init__(self, test_id: str, inst_set: str, instances: list, paths: list, 
                 exp_dir: str, mask_rate: float, mask_mode: str,
                 patch_width: int, patch_height: int, xai_algorithm: str, 
-                xai_mode: str, surrogate_model: str, save_patches=True, verbose=False):
+                xai_mode: str, surrogate_model: str, logger, save_patches=True, verbose=False):
         self.test_id = test_id
         self.inst_set = inst_set
         self.instances = instances
@@ -31,10 +31,11 @@ class ImageMasker:
         self.xai_algorithm = xai_algorithm
         self.xai_mode = xai_mode
         self.surrogate_model = surrogate_model
+        self.logger = logger
         self.save_patches = save_patches
         self.verbose = verbose
         
-        self.exp_metadata = load_metadata(f"{LOG_ROOT}/{self.test_id}-metadata.json")
+        self.exp_metadata = load_metadata(f"{LOG_ROOT}/{self.test_id}-metadata.json", self.logger)
         self.dataset = self.exp_metadata["DATASET"]
         
         self.full_img_width, self.full_img_height = 0, 0
@@ -86,12 +87,12 @@ class ImageMasker:
                   
                 results.append([instance_patch, score, left_b_patch, top_b_patch, right_b_patch, bottom_b_patch])
         
-        print(f"Patch Coordinates found for Instance: {instance_name}")
+        self.logger.info(f"Patch Coordinates found for Instance: {instance_name}")
         return results
     
     def __call__(self):
-        print(f"*** BEGINNING OF MASKING PROCESS FOR TEST: {self.test_id} ***")
-        print(f"*** MODE = {self.mask_mode}, RATE = {self.mask_rate} ***")
+        self.logger.info(f"*** Experiment: {self.test_id} -> BEGINNING OF MASKING PROCESS ***")
+        self.logger.info(f"*** MODE = {self.mask_mode}, RATE = {self.mask_rate} ***")
         
         MODEL_TYPE = self.exp_metadata["MODEL_TYPE"]
         EXP_METADATA_PATH = f"{LOG_ROOT}/{self.test_id}-metadata.json"
@@ -108,12 +109,12 @@ class ImageMasker:
             if self.inst_set == "train": dest_dir = f"{DATASET_ROOT}/{self.dataset}/{c}-{self.test_id}_{MODEL_TYPE}_masked_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}"
 
             # 'test' Instances are masked to be then used for the "Faithfulness" evaluation
-            elif self.inst_set == "test": dest_dir = f"{EVAL_ROOT}/faithfulness/{self.test_id}/{self.xai_algorithm}_base_{self.surrogate_model}/test_set_masked_{self.mask_mode}_{self.mask_rate}/{c}"
+            elif self.inst_set == "test": dest_dir = f"{EVAL_ROOT}/faithfulness/{self.test_id}/{self.xai_algorithm}_{self.xai_mode}_{self.surrogate_model}/test_set_masked_{self.mask_mode}_{self.mask_rate}/{c}"
 
             os.makedirs(dest_dir, exist_ok=True)
             os.system(f"cp {src_path} {dest_dir}/{inst_name}{inst_filetype}")
             
-        print(f"*** END OF MASKING PROCESS FOR TEST: {self.test_id} ***\n")
+        self.logger.info(f"*** Experiment: {self.test_id} -> END OF MASKING PROCESS FOR TEST ***\n")
         
         self.exp_metadata[f"MASK_PROCESS_{self.inst_set}_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}_{self.xai_mode}_END_TIMESTAMP"] = str(datetime.now())
         save_metadata(self.exp_metadata, EXP_METADATA_PATH)
@@ -125,7 +126,7 @@ class SaliencyMasker(ImageMasker):
     
     def mask_full_instance(self, full_img_name, full_img_path):
         """This method performs the Saliency masking for a given instance."""
-        if self.verbose: print(f"Processing Saliency Masking for Instance: {full_img_name}")
+        if self.verbose: self.logger.info(f"Processing Saliency Masking for Instance: {full_img_name}")
         full_img = Image.open(full_img_path)
         
         self.full_img_width, self.full_img_height = full_img.size
@@ -145,10 +146,10 @@ class SaliencyMasker(ImageMasker):
             MASK_METADATA = {"INSTANCES": dict()}
             save_metadata(MASK_METADATA, MASK_METADATA_PATH)
         else:
-            MASK_METADATA = load_metadata(MASK_METADATA_PATH)
+            MASK_METADATA = load_metadata(MASK_METADATA_PATH, self.logger)
         
         if not os.path.exists(f"{self.INSTANCE_DIR}/masking_results.csv"):
-            if self.verbose: print("PHASE 1 -> PATCHES MAPPING")
+            if self.verbose: self.logger.info("PHASE 1 -> PATCHES MAPPING")
             directory = f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}"
             instances = [i for i in os.listdir(directory) if full_img_name in i]
             
@@ -161,10 +162,10 @@ class SaliencyMasker(ImageMasker):
             df.to_csv(f"{self.INSTANCE_DIR}/masking_results.csv", index=False, header=True)
         
         else:
-            if self.verbose: print("PHASE 1 SKIPPED -> PATCHES MAPPING ALREADY AVAILABLE")
+            if self.verbose: self.logger.warning("PHASE 1 SKIPPED -> PATCHES MAPPING ALREADY AVAILABLE")
             df = pd.read_csv(f"{self.INSTANCE_DIR}/masking_results.csv", header=0)
         
-        if self.verbose: print("PHASE 2 -> MASKING PROCESS")
+        if self.verbose: self.logger.info("PHASE 2 -> MASKING PROCESS")
         
         self.INSTANCE_DIR_MODE_RATE = f"{self.INSTANCE_DIR}/{self.mask_mode}_{self.mask_rate}"
         os.makedirs(self.INSTANCE_DIR_MODE_RATE, exist_ok=True)
@@ -206,7 +207,7 @@ class SaliencyMasker(ImageMasker):
             bottom = df.iloc[row]["Coordinates_Bottom"]
                     
             if (right - left + 1 != self.patch_width) or (bottom - top + 1 != self.patch_height):
-                if self.verbose: print(f"Skipped {patch_id} due to wrong dimensions")
+                if self.verbose: self.logger.warning(f"Skipped {patch_id} due to wrong dimensions")
                 row += 1
                 continue
             
@@ -229,7 +230,7 @@ class SaliencyMasker(ImageMasker):
         full_img_masked = T.ToPILImage()(full_img_masked_tensor_copy)
         full_img_masked.save(f"{self.INSTANCE_DIR_MODE_RATE}/{full_img_name}_masked_{self.mask_mode}_{self.mask_rate}{full_img_type}")
         
-        if self.verbose: print(f"End of Masking Process for the current Instance -> Masked Patches: {masked_patches}\n")
+        if self.verbose: self.logger.info(f"End of Masking Process for the current Instance -> Masked Patches: {masked_patches}\n")
         
         masked_area_ratio = masked_area / full_img_area
         MASK_METADATA["INSTANCES"][f"{full_img_name}"] = masked_area_ratio
@@ -245,7 +246,7 @@ class RandomMasker(ImageMasker):
         """
         This method performs the Random masking for a given instance.
         """
-        if self.verbose: print(f"Processing Random Masking for Instance: {full_img_name}")
+        if self.verbose: self.logger.info(f"Processing Random Masking for Instance: {full_img_name}")
         full_img = Image.open(full_img_path)
         
         self.full_img_width, self.full_img_height = full_img.size
@@ -265,9 +266,9 @@ class RandomMasker(ImageMasker):
             MASK_METADATA = {"INSTANCES": dict()}
             save_metadata(MASK_METADATA, MASK_METADATA_PATH)
         else:
-            MASK_METADATA = load_metadata(MASK_METADATA_PATH)
+            MASK_METADATA = load_metadata(MASK_METADATA_PATH, self.logger)
         
-        if self.verbose: print("MASKING PROCESS")
+        if self.verbose: self.logger.info("MASKING PROCESS")
         
         self.INSTANCE_DIR_MODE_RATE = f"{self.INSTANCE_DIR}/{self.mask_mode}_{self.mask_rate}"
         os.makedirs(self.INSTANCE_DIR_MODE_RATE, exist_ok=True)
@@ -307,7 +308,7 @@ class RandomMasker(ImageMasker):
         full_img_masked = T.ToPILImage()(full_img_masked_tensor_copy)
         full_img_masked.save(f"{self.INSTANCE_DIR_MODE_RATE}/{full_img_name}_masked_{self.mask_mode}_{self.mask_rate}{full_img_type}")
         
-        if self.verbose: print(f"End of Masking Process for the current Instance -> Masked Patches: {masked_patches}\n")
+        if self.verbose: self.logger.info(f"End of Masking Process for the current Instance -> Masked Patches: {masked_patches}\n")
         
         masked_area_ratio = masked_area / full_img_area
         MASK_METADATA["INSTANCES"][f"{full_img_name}"] = masked_area_ratio

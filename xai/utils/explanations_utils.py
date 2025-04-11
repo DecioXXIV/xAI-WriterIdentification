@@ -74,6 +74,8 @@ def setup_explainer(xai_algorithm, surrogate_model, model_type, model, num_sampl
 
 def explain_instance(explainer, img, img_rows, img_cols, instance_name, label, mask, mask_rows, mask_cols, output_dir, crop_size, overlap, iters):
     scores = dict()
+    total_masked_patches = list()
+    total_samples = dict()
     for i in range(0, (mask_rows)*(mask_cols)): scores[i] = list()
     
     grid_dict = create_image_grid(img_rows, img_cols, crop_size, overlap)
@@ -89,7 +91,7 @@ def explain_instance(explainer, img, img_rows, img_cols, instance_name, label, m
                 crop_attr = dict()
 
                 for iteration in range(0, iters):
-                    attr = explainer.explain_instance(crop_img, segments, label)
+                    attr, maskings, binary_samples = explainer.explain_instance(crop_img, segments, label)
                     for k, v in attr.items():
                         if k not in crop_attr: crop_attr[k] = v
                         else: crop_attr[k] += v
@@ -97,15 +99,18 @@ def explain_instance(explainer, img, img_rows, img_cols, instance_name, label, m
                 for k, v in crop_attr.items(): crop_attr[k] = float(v / iters)
                 
                 normalized_crop_attr = normalize_scores(crop_attr, percentile=98)
-                
                 for k, v in normalized_crop_attr.items(): scores[k].append(v)
-                
+
+                total_masked_patches.extend(maskings)
+                for i, s in enumerate(binary_samples): 
+                    total_samples[f"{instance_name}_gridcrop{r}_{c}_num{i}"] = s
+
                 pbar.update(1)
 
     final_scores = reduce_scores(scores)
     with open(f"{output_dir}/{instance_name}_scores.json", "w") as f: json.dump(final_scores, f, indent=4)
 
-    return final_scores
+    return final_scores, np.array(total_masked_patches), total_samples
 
 def visualize_exp_outcome(scores, mask, instance_name, output_dir,):
     mask_array = np.array(mask)/100
