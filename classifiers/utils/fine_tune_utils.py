@@ -1,5 +1,4 @@
 import os, multiprocessing, random, torch
-import numpy as np
 from torchvision.transforms import v2
 from PIL import Image
 
@@ -22,29 +21,24 @@ def create_directories(root_folder, classes):
     
     os.makedirs(f"{root_folder}/output", exist_ok=True)
 
-def load_model(model_type, num_classes, mode, cp_base, phase, test_id, exp_metadata, device):
-    print(f"Loading Model '{model_type}'...")
+def load_model(model_type, num_classes, mode, cp_base, phase, test_id, exp_metadata, device, logger):
+    logger.info(f"Loading Model '{model_type}'...")
     model, last_cp = None, None
-    if model_type == "ResNet18":
-        model, last_cp = load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_metadata, device)
+    if model_type == "ResNet18": model, last_cp = load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_metadata, device, logger)
     
-    print("...Model successfully loaded!")
+    logger.info("...Model successfully loaded!")
 
     return model, last_cp
 
-def test_fine_tuned_model(test_id, exp_metadata, model_type, crop_size, OUTPUT_DIR, CLASSES_DATA, CP_BASE, mean_, std_):
-    if "MODEL_TESTING_TIMESTAMP" in exp_metadata:
-        print(f"*** IN RELATION TO THE EXPERIMENT '{test_id}', THE MODEL HAS ALREADY BEEN TESTED! ***")
-    
-    else:
-        exp_dir = f"{CLASSIFIERS_ROOT}/classifier_{model_type}/tests/{test_id}"
+def test_fine_tuned_model(test_id, exp_metadata, model_type, crop_size, OUTPUT_DIR, CLASSES_DATA, CP_BASE, mean_, std_, logger):
+    exp_dir = f"{CLASSIFIERS_ROOT}/classifier_{model_type}/tests/{test_id}"
         
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model, _ = load_model(model_type, len(CLASSES_DATA), "frozen", CP_BASE, "test", test_id, exp_metadata, device)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model, _ = load_model(model_type, len(CLASSES_DATA), "frozen", CP_BASE, "test", test_id, exp_metadata, device, logger)
         
-        n_crops_per_test_instance = exp_metadata["FINE_TUNING_HP"]["n_crops_per_test_instance"]
-        dl = Test_DataLoader(directory=f"{exp_dir}/test", classes=list(CLASSES_DATA.keys()), batch_size=n_crops_per_test_instance, img_crop_size=crop_size, mean=mean_, std=std_)
-        produce_classification_reports(dl, device, model, OUTPUT_DIR, test_id)
+    n_crops_per_test_instance = exp_metadata["FINE_TUNING_HP"]["n_crops_per_test_instance"]
+    dl = Test_DataLoader(directory=f"{exp_dir}/test", classes=list(CLASSES_DATA.keys()), batch_size=n_crops_per_test_instance, img_crop_size=crop_size, mean=mean_, std=std_)
+    produce_classification_reports(dl, device, model, OUTPUT_DIR, test_id)
 
 ### ############### ###
 ### CROP EXTRACTION ###
@@ -121,7 +115,7 @@ def apply_image_augmentations(args):
 
     mean_int = tuple(int(m * 255) for m in mean_)
     
-    cjitter = {'brightness': [0.4, 1.3], 'contrast': 0.6, 'saturation': 0.6, 'hue': 0.4}
+    cjitter = {'brightness': [0.4, 1.3], 'contrast': 0.6, 'saturation': 0.6, 'hue': (-0.4, 0.4)}
     randaffine = {'degrees': [-10,10], 'translate': [0.2, 0.2], 'scale': [1.3, 1.4], 'shear': 1, 'interpolation': v2.InterpolationMode.BILINEAR, 'fill': mean_int}
     randpersp = {'distortion_scale': 0.1, 'p': 0.2, 'interpolation': v2.InterpolationMode.BILINEAR, 'fill': mean_int}
     gray_p = 0.2
@@ -135,17 +129,16 @@ def apply_image_augmentations(args):
     transforms = v2.Compose([
         v2.RandomAffine(**randaffine),
         v2.RandomPerspective(**randpersp),
+        v2.ToImage(),
+        v2.ToDtype(torch.float32, scale=True),
         v2.GaussianBlur(**gaussian_blur),
         v2.ColorJitter(**cjitter),
         v2.RandomGrayscale(gray_p),
-        v2.ToImage(),
-        v2.ToDtype(torch.float32, scale=True),
-        # v2.RandomErasing(**rand_eras),
         v2.RandomApply([Invert()], p=invert_p),
         v2.RandomApply([AddGaussianNoise(**gaussian_noise)], p=gn_p),
         v2.ToPILImage()
     ])
-    
+
     crop_name = crop_path.split('/')[-1]
     augmented_crop = transforms(crop)
     augmented_crop.save(f"{exp_dir}/train/{class_name}/{crop_name}")

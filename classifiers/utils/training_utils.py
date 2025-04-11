@@ -110,7 +110,8 @@ def set_scheduler(optimizer, exp_metadata, cp=None):
     scheduler, scheduler_type = None, ft_params['scheduler']
     
     max_epochs = ft_params['total_epochs']
-    min_lr = int(ft_params['learning_rate'] * 0.025)
+    # min_lr = int(ft_params['learning_rate'] * 0.025)
+    min_lr = int(ft_params['learning_rate'] * 0.125)
     last_epoch = exp_metadata.get("EPOCHS_COMPLETED", -1)
     
     if scheduler_type == 'cos_annealing':
@@ -123,7 +124,7 @@ def set_scheduler(optimizer, exp_metadata, cp=None):
     return scheduler
 
 class Trainer():
-    def __init__(self, model, t_set, v_set, DEVICE, model_path, history_path, exp_metadata, last_cp=None):
+    def __init__(self, model, t_set, v_set, DEVICE, model_path, history_path, exp_metadata, last_cp=None, logger=None):
         self.model = model
         self.t_set = t_set
         self.v_set = v_set
@@ -133,6 +134,7 @@ class Trainer():
         self.checkpoint_path = os.path.join(self.model_path, 'checkpoints')
         self.exp_metadata = exp_metadata
         self.last_cp = last_cp
+        self.logger = logger
         
         self.optim_type = self.exp_metadata["FINE_TUNING_HP"]["optimizer"]
         self.lr_ = self.exp_metadata["FINE_TUNING_HP"]["learning_rate"]
@@ -152,8 +154,9 @@ class Trainer():
     def train_one_epoch(self, optimizer, criterion):
         self.model.train()
         epoch_loss, epoch_acc, total_samples = torch.tensor(0.0), 0.0, 0
+        pbar = tqdm(self.t_set, desc="Training", dynamic_ncols=True)
 
-        for data, target in tqdm(self.t_set, desc="Training"):
+        for data, target in pbar:
             bs = data.size()[0]
             data, target, epoch_loss = data.to(self.device), target.to(self.device), epoch_loss.to(self.device)
             
@@ -169,20 +172,21 @@ class Trainer():
             
             loss.backward()
             optimizer.step()
+            
+            pbar.set_postfix(loss=epoch_loss.item()/total_samples, accuracy=epoch_acc/total_samples, refresh=True)
         
         epoch_final_loss = epoch_loss.item() / total_samples
         epoch_final_acc = epoch_acc / total_samples
-        
-        print(f"Train_Loss: {epoch_final_loss} - Train_Accuracy: {epoch_final_acc}\n")
         
         return epoch_final_loss, epoch_final_acc
 
     def validate_one_epoch(self, criterion):
         self.model.eval()
         val_loss, val_acc, total_samples = torch.tensor(0.0), 0.0, 0
+        pbar = tqdm(self.v_set, desc="Validation", dynamic_ncols=True)
 
         with torch.no_grad():
-            for data, target in tqdm(self.v_set, desc="Validation"):
+            for data, target in pbar:
                 bs = data.size()[0]
                 data, target, val_loss = data.to(self.device), target.to(self.device), val_loss.to(self.device)
                 
@@ -193,19 +197,19 @@ class Trainer():
                 val_loss += loss.detach() * bs
                 val_acc += correct
                 total_samples += bs
+                
+                pbar.set_postfix(loss=val_loss.item()/total_samples, accuracy=val_acc/total_samples, refresh=True)
         
         epoch_final_loss = val_loss.item() / total_samples
         epoch_final_acc = val_acc / total_samples
-        
-        print(f"Val_Loss: {epoch_final_loss} - Val_Accuracy: {epoch_final_acc}\n")
         
         return epoch_final_loss, epoch_final_acc
 
     def train_model(self):
         optimizer = set_optimizer(self.optim_type, self.lr_, self.model, self.last_cp)
         scheduler = set_scheduler(optimizer, self.exp_metadata, self.last_cp)
-        criterion = nn.CrossEntropyLoss()
-        # criterion = nn.CrossEntropyLoss(label_smoothing=0.1) -> To Test!
+        # criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # To Test!
         
         train_loss = load_history(f"{self.checkpoint_path}/../{self.test_name}train_loss.pkl")
         val_loss = load_history(f"{self.checkpoint_path}/../{self.test_name}val_loss.pkl")
@@ -220,10 +224,11 @@ class Trainer():
         tosave_cp_path = f"{self.checkpoint_path}/{self.test_name}"
         
         for epoch in range(start_epoch, self.num_epochs + 1):
-            print(f'Epoch {epoch} / {self.num_epochs}')
-            
+            self.logger.info(f'Epoch {epoch} / {self.num_epochs}')
             train_epoch_loss, train_epoch_acc = self.train_one_epoch(optimizer, criterion)
+            self.logger.info(f"Epoch: {epoch} -> Train Loss: {train_epoch_loss} - Train Accuracy: {train_epoch_acc}")
             val_epoch_loss, val_epoch_acc = self.validate_one_epoch(criterion)
+            self.logger.info(f"Epoch: {epoch} -> Val_Loss: {val_epoch_loss} - Val_Accuracy: {val_epoch_acc}\n")
             
             train_loss.append(train_epoch_loss)
             train_acc.append(train_epoch_acc)
