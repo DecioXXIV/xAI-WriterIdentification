@@ -8,14 +8,28 @@ CLASSIFIERS_ROOT = "./classifiers"
 ### SUPPORT FUNCTIONS ###
 ### ################# ###
 def add_fc_layer(type_fc_layer, in_f, out_f):
-    if type_fc_layer == 'last':
-        fc_block = nn.Sequential(*[nn.Linear(in_features = in_f, out_features = out_f)])
-    elif type_fc_layer == 'hidden':
-        fc_block = nn.Sequential(*[nn.Linear(in_features = in_f, out_features = out_f),
-                    nn.BatchNorm1d(out_f), nn.ReLU(), nn.Dropout(p = 0.3)])
-    else:
-        raise Exception('Wrong fully connected layer type')
+    if type_fc_layer == "last":
+        fc = nn.Linear(in_features=in_f, out_features=out_f)
+        nn.init.xavier_normal_(fc.weight)
+        if fc.bias is not None: nn.init.zeros_(fc.bias)
+        
+        fc_block = nn.Sequential(fc)
     
+    elif type_fc_layer == "hidden":
+        components = list()
+
+        fc = nn.Linear(in_features=in_f, out_features=out_f)
+        nn.init.xavier_normal_(fc.weight)
+        if fc.bias is not None: nn.init.zeros_(fc.bias)
+        components.append(fc)
+
+        components.append(nn.BatchNorm1d(out_f))
+        components.append(nn.ReLU())
+
+        fc_block = nn.Sequential(*components)
+    
+    else: raise Exception('Wrong fully connected layer type')
+
     return fc_block
 
 def load_encoder(mode, cp_path):
@@ -32,20 +46,20 @@ def load_encoder(mode, cp_path):
     
     return base_model
 
-def load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_metadata, device):
+def load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_metadata, device, logger):
     model = ResNet18_Classifier(num_classes=num_classes, mode=mode, cp_path=cp_base)
     output_dir = f"{CLASSIFIERS_ROOT}/classifier_ResNet18/tests/{test_id}/output"
     last_cp = None
     
     if phase == "train":
-        print("'train' Phase")
+        logger.info("'train' Phase")
         if "refined" in test_id:
             base_id, _ = test_id.split(':')
             last_cp_path = f"{CLASSIFIERS_ROOT}/classifier_ResNet18/tests/{base_id}/output/checkpoints/Test_{base_id}_MLC_val_best_model.pth"
             last_cp = torch.load(last_cp_path)
             model.load_state_dict(last_cp['model_state_dict'])
             
-            print(f"'{test_id}' is a 'refined' experiment: the Fine-Tuning will start from the model already fine-tuned for '{base_id}'")
+            logger.warning(f"'{test_id}' is a 'refined' experiment: the Fine-Tuning will start from the model already fine-tuned for '{base_id}'")
         
         if "EPOCHS_COMPLETED" in exp_metadata:
             epochs = exp_metadata["FINE_TUNING_HP"]["total_epochs"]
@@ -55,14 +69,14 @@ def load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_met
             last_cp = torch.load(last_cp_path)
             model.load_state_dict(last_cp['model_state_dict'])
 
-            print(f"Fine-Tuning process for '{test_id}' has been somehow interrupted before its ending")
-            print(f"{epochs_completed} epochs have already been completed: the Fine-Tuning process will be ended with the remaining {epochs_to_do} epochs")
+            logger.warning(f"Fine-Tuning process for '{test_id}' has been somehow interrupted before its ending")
+            logger.warning(f"{epochs_completed} epochs have already been completed: the Fine-Tuning process will be ended with the remaining {epochs_to_do} epochs")
     
     elif phase == "test":
         cp_to_test = f"{output_dir}/checkpoints/Test_{test_id}_MLC_val_best_model.pth"
         model.load_state_dict(torch.load(cp_to_test)['model_state_dict'])
         model.eval()
-        print("'test' Phase: the Model has been set-up for Testing phase")
+        logger.info("'test' Phase: the Model has been set-up for Testing phase")
     
     return model.to(device), last_cp
 
