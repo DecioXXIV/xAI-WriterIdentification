@@ -50,7 +50,7 @@ def mask_test_instances(instances, paths, test_id, exp_dir, mask_rate, mask_mode
     
     dir_name = exp_metadata[f"{xai_algorithm}_{xai_mode}_{surrogate_model}_METADATA"]["DIR_NAME"]
     MASK_METADATA_PATH = f"{XAI_ROOT}/masked_images/{dir_name}/test_{mask_mode}_{mask_rate}_{xai_algorithm}-metadata.json"
-    MASK_METADATA = load_metadata(MASK_METADATA_PATH)
+    MASK_METADATA = load_metadata(MASK_METADATA_PATH, logger)
     
     mask_rate2instance = MASK_METADATA["INSTANCES"]
     total_instances, bad_instances = len(mask_rate2instance), 0
