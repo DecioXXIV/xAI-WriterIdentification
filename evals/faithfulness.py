@@ -3,11 +3,11 @@ import numpy as np
 import pickle as pkl
 from argparse import ArgumentParser
 
-from utils import load_metadata, get_model_base_checkpoint, get_logger
+from utils import load_metadata, get_model_base_checkpoint, get_logger, str2bool
 
 from classifiers.utils.fine_tune_utils import load_model
 
-from evals.utils.faithfulness_utils import get_test_instances_to_mask, mask_test_instances, test_model, produce_faithfulness_comparison_report
+from evals.utils.faithfulness_utils import get_test_instances_to_mask, mask_test_instances, test_model, produce_faithfulness_comparison_plot
 
 LOG_ROOT = "./log"
 EVAL_ROOT = "./evals"
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     
     exp_eval_directory = f"{EVAL_ROOT}/faithfulness/{TEST_ID}/{XAI_ALGORITHM}_{XAI_MODE}_{SURROGATE_MODEL}"
     os.makedirs(exp_eval_directory, exist_ok=True)
-    with open(f"{exp_eval_directory}/faithfulness_{MASK_MODE}.txt", 'w') as f: 
+    with open(f"{exp_eval_directory}/faithfulness_{MASK_MODE}_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}.txt", 'w') as f: 
         f.write(f"*** FAITHFULNESS COMPUTATION FOR TEST: {TEST_ID} ***\n")
     
     model, _ = load_model(MODEL_TYPE, len(CLASSES), "frozen", CP_BASE, "test", TEST_ID, None, DEVICE, logger)
@@ -86,13 +86,13 @@ if __name__ == '__main__':
         mask_rate_performances = test_model(model, DEVICE, CLASSES, EXP_METADATA, mask_rate, MASK_MODE, exp_eval_directory)
         logger.info(f"TEST ACCURACY FOR M_RATE {mask_rate}: {mask_rate_performances}\n")
             
-        with open(f"{exp_eval_directory}/faithfulness_{MASK_MODE}.txt", 'a') as f:
+        with open(f"{exp_eval_directory}/faithfulness_{MASK_MODE}_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}.txt", 'a') as f:
             f.write(f"M_RATE: {mask_rate}; TEST ACCURACY: {mask_rate_performances}\n")
             f.write("### ------------------ ###\n\n")
             
         performances.append(mask_rate_performances)
     
-    with open(f"{exp_eval_directory}/faithfulness_{MASK_MODE}.pkl", 'wb') as f:
+    with open(f"{exp_eval_directory}/faithfulness_{MASK_MODE}_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}.pkl", 'wb') as f:
         pkl.dump(performances, f)
     
     performances = np.array(performances)
@@ -102,12 +102,12 @@ if __name__ == '__main__':
     
     logger.info(f"Faithfulness for {TEST_ID}: {faithfulness}")
     
-    with open(f"{exp_eval_directory}/faithfulness_{MASK_MODE}.txt", 'a') as f:
+    with open(f"{exp_eval_directory}/faithfulness_{MASK_MODE}_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}.txt", 'a') as f:
         f.write("### ------------------ ###\n")
         f.write(f"Faithfulness: {faithfulness}")
     
-    faithfulness_saliency_path = f"{exp_eval_directory}/faithfulness_saliency.pkl"
-    faithfulness_random_path = f"{exp_eval_directory}/faithfulness_random.pkl"
+    faithfulness_saliency_path = f"{exp_eval_directory}/faithfulness_saliency_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}.pkl"
+    faithfulness_random_path = f"{exp_eval_directory}/faithfulness_random_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}.pkl"
     
     if os.path.exists(faithfulness_saliency_path) and os.path.exists(faithfulness_random_path):
-        produce_faithfulness_comparison_report(MASK_STEP, MASK_CEIL, exp_eval_directory)
+        produce_faithfulness_comparison_plot(MASK_STEP, MASK_CEIL, exp_eval_directory)

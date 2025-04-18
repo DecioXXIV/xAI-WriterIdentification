@@ -44,21 +44,9 @@ def mask_test_instances(instances, paths, test_id, exp_dir, mask_rate, mask_mode
         masker = RandomMasker(test_id=test_id, inst_set="test", instances=instances, paths=paths,
             exp_dir=exp_dir, mask_rate=mask_rate, mask_mode=mask_mode, patch_width=patch_width, 
             patch_height=patch_height, xai_algorithm=xai_algorithm, xai_mode=xai_mode, surrogate_model=surrogate_model,
-            logger=logger, save_patches=False, verbose=True)
+            logger=logger, save_patches=False, verbose=False)
     
     masker()
-    
-    dir_name = exp_metadata[f"{xai_algorithm}_{xai_mode}_{surrogate_model}_METADATA"]["DIR_NAME"]
-    MASK_METADATA_PATH = f"{XAI_ROOT}/masked_images/{dir_name}/test_{mask_mode}_{mask_rate}_{xai_algorithm}-metadata.json"
-    MASK_METADATA = load_metadata(MASK_METADATA_PATH, logger)
-    
-    mask_rate2instance = MASK_METADATA["INSTANCES"]
-    total_instances, bad_instances = len(mask_rate2instance), 0
-    for _, masked_area in mask_rate2instance.items():
-        if masked_area < mask_rate: bad_instances += 1
-    
-    if bad_instances < 0.33 * total_instances: return True
-    else: return False
 
 def test_model(model, device, classes, exp_metadata, mask_rate, mask_mode, exp_eval_directory):
     test_set_dir = f"{exp_eval_directory}/test_set_masked_{mask_mode}_{mask_rate}"
@@ -73,9 +61,9 @@ def test_model(model, device, classes, exp_metadata, mask_rate, mask_mode, exp_e
     
     return accuracy_score(label_class_names, pred_class_names)
 
-def produce_faithfulness_comparison_report(mask_step, mask_ceil, exp_eval_directory):
-    saliency_test_accs_path = f"{exp_eval_directory}/faithfulness_saliency.pkl"
-    random_test_accs_path = f"{exp_eval_directory}/faithfulness_random.pkl"
+def produce_faithfulness_comparison_plot(mask_step, mask_ceil, exp_eval_directory):
+    saliency_test_accs_path = f"{exp_eval_directory}/faithfulness_saliency_ceil{float(mask_ceil)*100}_step{float(mask_step)*100}.pkl"
+    random_test_accs_path = f"{exp_eval_directory}/faithfulness_random_ceil{float(mask_ceil)*100}_step{float(mask_step)*100}.pkl"
     
     saliency_test_accs, random_test_accs = None, None
     with open(saliency_test_accs_path, "rb") as f: saliency_test_accs = pkl.load(f)
@@ -96,4 +84,4 @@ def produce_faithfulness_comparison_report(mask_step, mask_ceil, exp_eval_direct
     plt.legend()
     plt.grid(True)
 
-    plt.savefig(f"{exp_eval_directory}/faithfulness_plot.png")
+    plt.savefig(f"{exp_eval_directory}/faithfulness_plot_ceil{float(mask_ceil)*100}_step{float(mask_step)*100}.png")

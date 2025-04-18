@@ -124,7 +124,7 @@ class SaliencyMasker(ImageMasker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
     
-    def mask_full_instance(self, full_img_name, full_img_path):
+    def mask_full_instance(self, full_img_name, full_img_path): 
         """This method performs the Saliency masking for a given instance."""
         if self.verbose: self.logger.info(f"Processing Saliency Masking for Instance: {full_img_name}")
         full_img = Image.open(full_img_path)
@@ -199,6 +199,7 @@ class SaliencyMasker(ImageMasker):
         check_array = np.ones(shape=(self.full_img_height, self.full_img_width))
         masked_patches, masked_area, row = 0, 0, 0
         end_condition = False
+        
         while not end_condition:
             patch_id = df.iloc[row]["Instance_Patch"].split('_')[-1]
             left = df.iloc[row]["Coordinates_Left"]
@@ -206,25 +207,15 @@ class SaliencyMasker(ImageMasker):
             right = df.iloc[row]["Coordinates_Right"] 
             bottom = df.iloc[row]["Coordinates_Bottom"]
                     
-            if (right - left + 1 != self.patch_width) or (bottom - top + 1 != self.patch_height):
-                if self.verbose: self.logger.warning(f"Skipped {patch_id} due to wrong dimensions")
-                row += 1
-                continue
-            
-            if df.iloc[row]["Score"] <= 0:
+            for channel, mean_v in enumerate(self.training_mean):
+                full_img_to_mask_tensor[channel, top:bottom+1, left:right+1] = mean_v
+            check_array[top:bottom+1, left:right+1] = 0
+            masked_patches += 1
+            row += 1
+                
+            masked_area = np.count_nonzero(check_array == 0)
+            if (masked_area >= full_img_area * self.mask_rate):
                 end_condition = True
-            
-            else:
-                for channel, mean_v in enumerate(self.training_mean):
-                    full_img_to_mask_tensor[channel, top:bottom+1, left:right+1] = mean_v
-                
-                check_array[top:bottom+1, left:right+1] = 0
-                masked_patches += 1
-                row += 1
-                
-                masked_area = np.count_nonzero(check_array == 0)
-                if (masked_area > full_img_area * self.mask_rate):
-                    end_condition = True
                     
         full_img_masked_tensor_copy = deepcopy(full_img_to_mask_tensor)
         full_img_masked = T.ToPILImage()(full_img_masked_tensor_copy)
