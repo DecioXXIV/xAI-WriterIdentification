@@ -26,7 +26,7 @@ def xaiaug2str(value: str):
 
 def datasets2hi(value: str):
     valid_datasets = os.listdir(DATASETS_ROOT)
-    valid_datasets.remove("__pycache__")
+    if "__pycache__" in valid_datasets: valid_datasets.remove("__pycache__")
     valid_datasets.remove("__init__.py")
     valid_datasets.remove("prepare_pages.py")
     valid_datasets.remove("dataset_utils.py")
