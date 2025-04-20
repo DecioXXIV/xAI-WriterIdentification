@@ -104,10 +104,11 @@ class ResNet18_Classifier(nn.Module):
         self.base_model = load_encoder(mode, cp_path)
         self.fc_layers = nn.Sequential()
         self.num_classes = num_classes
-        new_layer = add_fc_layer('hidden', 1024,  32)
-        class_layer = add_fc_layer('last', 32, self.num_classes)
-        self.fc_layers.add_module('fc0', new_layer)
-        self.fc_layers.add_module('fc1', class_layer)
+        
+        new_layer = add_fc_layer('hidden', 1024, 128)
+        class_layer = add_fc_layer('last', 128, self.num_classes)
+        self.fc_layers.add_module('ch0', new_layer)
+        self.fc_layers.add_module('ch1', class_layer)
     
     def extract_visual_features(self, x):
         x = self.base_model.enc(x)
