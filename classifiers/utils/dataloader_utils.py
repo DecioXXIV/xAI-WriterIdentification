@@ -171,7 +171,7 @@ class Base_DataLoader():
         return ds
     
     def compose_transform(self):
-        transforms = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True), v2.Normalize(self.mean, self.std)])
+        transforms = T.Compose([T.ToTensor(), T.Normalize(self.mean, self.std)])
         return transforms
 
 class Train_DataLoader(Base_DataLoader):
@@ -199,6 +199,33 @@ class Train_DataLoader(Base_DataLoader):
         loader = DataLoader(dataset, batch_size=self.batch_size, sampler=sampler, num_workers=num_workers)
         
         return dataset, loader
+    
+    def compose_transform(self):
+        mean_int = tuple(int(m * 255) for m in self.mean)
+        cjitter = {'brightness': [0.4, 1.3], 'contrast': 0.6, 'saturation': 0.6, 'hue': (-0.4, 0.4)}
+        randaffine = {'degrees': [-10,10], 'translate': [0.2, 0.2], 'scale': [1.3, 1.4], 'shear': 1, 'interpolation': v2.InterpolationMode.BILINEAR, 'fill': mean_int}
+        randpersp = {'distortion_scale': 0.1, 'p': 0.2, 'interpolation': v2.InterpolationMode.BILINEAR, 'fill': mean_int}
+        gray_p = 0.2
+        gaussian_blur = {'kernel_size': 3, 'sigma': [0.1, 0.5]}
+        rand_eras = {'p': 0.5, 'scale': [0.02, 0.33], 'ratio': [0.3, 3.3], 'value': self.mean}
+        invert_p = 0.05
+        gaussian_noise = {'mean': 0., 'std': 0.004}
+        gn_p = 0.0
+      
+        transforms = T.Compose([
+            T.ColorJitter(**cjitter),
+            T.RandomAffine(**randaffine),
+            T.RandomPerspective(**randpersp),
+            T.GaussianBlur(**gaussian_blur),
+            T.RandomGrayscale(gray_p),
+            T.ToTensor(),
+            T.RandomErasing(**rand_eras),
+            T.RandomApply([Invert()], p=invert_p),
+            T.Normalize(self.mean, self.std),
+            T.RandomApply([AddGaussianNoise(**gaussian_noise)], p=gn_p),
+        ])
+        
+        return transforms
 
 class Test_DataLoader(Base_DataLoader):
     def __init__(self, directory, classes, batch_size, img_crop_size, mean=[0, 0, 0], std=[1, 1, 1]):
@@ -236,5 +263,5 @@ class Dummy_Test_DataLoader(Base_DataLoader):
         return dataset, loader
 
     def compose_transform(self):
-        transforms = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True)])
+        transforms = T.Compose([T.ToTensor(), T.Normalize(self.mean, self.std)])
         return transforms

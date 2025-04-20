@@ -95,7 +95,7 @@ def retrieve_augmentation_crops(test_id, model_type, c):
     augmented_crops = os.listdir(f"{XAI_AUG_ROOT}/{base_id}/{aug_mode}_{balance}/crops_for_augmentation/{c}")
     for crop in augmented_crops:
         src = f"{XAI_AUG_ROOT}/{base_id}/{aug_mode}_{balance}/crops_for_augmentation/{c}/{crop}"
-        dst = f"{CLASSIFIERS_ROOT}/classifier_{model_type}/tests/{test_id}/train/{c}/{crop}"
+        dst = f"{CLASSIFIERS_ROOT}/classifier_{model_type}/tests/{test_id}/train_pre_aug/{c}/{crop}"
         os.system(f"cp {src} {dst}")
 
 ### ################# ###
@@ -109,6 +109,7 @@ def augment_train_crops_parallel(exp_dir, class_name, mean_, std_):
     with multiprocessing.Pool(num_workers) as pool:
         pool.map(apply_image_augmentations, [(crop_path, exp_dir, class_name, mean_, std_) for crop_path in base_crop_paths])
     
+### DEPRECATED! ###
 def apply_image_augmentations(args):
     crop_path, exp_dir, class_name, mean_, std_ = args
     crop = Image.open(crop_path)
@@ -120,8 +121,8 @@ def apply_image_augmentations(args):
     randpersp = {'distortion_scale': 0.1, 'p': 0.2, 'interpolation': v2.InterpolationMode.BILINEAR, 'fill': mean_int}
     gray_p = 0.2
     gaussian_blur = {'kernel_size': 3, 'sigma': [0.1, 0.5]}
-    # rand_eras = {'p': 0.5, 'scale': [0.02, 0.33], 'ratio': [0.3, 3.3]}
-    # rand_eras['value'] = mean_
+    rand_eras = {'p': 0.5, 'scale': [0.02, 0.33], 'ratio': [0.3, 3.3]}
+    rand_eras['value'] = mean_
     invert_p = 0.05
     gaussian_noise = {'mean': 0., 'std': 0.004}
     gn_p = 0.0

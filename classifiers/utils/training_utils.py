@@ -26,12 +26,15 @@ def save_history(filepath: str, data: List[float]):
     with open(filepath, "wb") as f:
         pkl.dump(data, f)
         
-def save_checkpoint(epoch_loss, min_loss, model, optimizer, scheduler, filepath, phase, check=True):
+def save_checkpoint(epoch_loss, min_loss, model, optimizer, scheduler, early_stopping, filepath, phase, check=True):
     state_dict = dict()
     state_dict["model_state_dict"] = model.state_dict()
     state_dict["optimizer_state_dict"] = optimizer.state_dict()
     state_dict["loss"] = epoch_loss
     if scheduler is not None: state_dict["scheduler_state_dict"] = scheduler.state_dict()
+    if early_stopping is not None: state_dict["early_stopping"] = early_stopping
+    
+    ### CARE! Early Stopping in "save_checkpoint" has to be fixed! ###    
     
     # Saving the New Best Checkpoint: check "train_loss" and "val_loss"
     if check is True and epoch_loss <= min_loss:
@@ -108,23 +111,63 @@ def set_optimizer(optim_type, lr_, model, cp=None):
 def set_scheduler(optimizer, exp_metadata, cp=None):
     ft_params = exp_metadata["FINE_TUNING_HP"]
     scheduler, scheduler_type = None, ft_params['scheduler']
-    
+
     max_epochs = ft_params['total_epochs']
-    # min_lr = int(ft_params['learning_rate'] * 0.025)
-    min_lr = int(ft_params['learning_rate'] * 0.125)
+    min_lr = ft_params['learning_rate'] * 0.125
+    patience = int(ft_params['total_epochs'] * 0.1)
+
     last_epoch = exp_metadata.get("EPOCHS_COMPLETED", -1)
     
     if scheduler_type == 'cos_annealing':
         scheduler = CosineAnnealingLR(optimizer, max_epochs, min_lr, last_epoch)
     elif scheduler_type == "reduce_lr_on_plateau":
-        scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=3)
+        scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=patience)
     
     if scheduler is not None and cp is not None: scheduler.load_state_dict(cp["scheduler_state_dict"])
     
     return scheduler
 
+def reset_cos_annealing_scheduler(cos_scheduler, total_epochs, exp_metadata):
+    ft_params = exp_metadata["FINE_TUNING_HP"]
+    last_epoch = exp_metadata["EPOCHS_COMPLETED"]
+    max_epochs = total_epochs - last_epoch
+    min_lr = int(ft_params['learning_rate'] * 0.001)
+    
+    cos_scheduler.T_max = max_epochs
+    cos_scheduler.eta_min = min_lr
+    
+    return cos_scheduler
+    
+class EarlyStopping():
+    def __init__(self, logger, patience=10, delta=0.0, max_epochs=200):
+        self.logger = logger
+        self.patience = patience
+        self.delta = delta
+        self.max_epochs = max_epochs
+        self.patience_counter = 0
+    
+    def set_best_val_loss(self, val_loss):
+        self.best_val_loss = val_loss
+    
+    def step_before_trigger(self, val_loss):
+        if val_loss < self.best_val_loss - self.delta:
+            self.best_val_loss = val_loss
+    
+    def step(self, val_loss):
+        if val_loss < self.best_val_loss - self.delta:
+            self.logger.info(f"Validation loss improved from {self.best_val_loss} to {val_loss}. Resetting patience...")
+            self.best_val_loss = val_loss
+            self.patience_counter = 0
+            return False
+        else:
+            self.patience_counter += 1
+            self.logger.warning(f"Validation loss did not improve. Patience counter: {self.patience_counter}/{self.patience}.")
+            if self.patience_counter >= self.patience:
+                self.logger.warning("Early stopping triggered.")
+                return True
+
 class Trainer():
-    def __init__(self, model, t_set, v_set, DEVICE, model_path, history_path, exp_metadata, last_cp=None, logger=None):
+    def __init__(self, model, t_set, v_set, DEVICE, model_path, history_path, exp_metadata, use_early_stopping=True, last_cp=None, logger=None):
         self.model = model
         self.t_set = t_set
         self.v_set = v_set
@@ -133,6 +176,7 @@ class Trainer():
         self.history_path = history_path
         self.checkpoint_path = os.path.join(self.model_path, 'checkpoints')
         self.exp_metadata = exp_metadata
+        self.use_early_stopping = use_early_stopping
         self.last_cp = last_cp
         self.logger = logger
         
@@ -143,6 +187,12 @@ class Trainer():
         
         self.test_id = self.exp_metadata["TEST_ID"]
         self.test_name = f"Test_{self.test_id}_MLC_"
+
+        self.max_epochs = None
+        if self.use_early_stopping:
+            self.early_stopping = EarlyStopping(self.logger, patience=10, delta=0.0, max_epochs=200)
+            self.max_epochs = self.early_stopping.max_epochs
+        else: self.max_epochs = self.num_epochs
     
     def compute_minibatch_accuracy(self, output: torch.Tensor, label: torch.Tensor) -> float:
         max_index = output.argmax(dim=1)
@@ -208,8 +258,7 @@ class Trainer():
     def train_model(self):
         optimizer = set_optimizer(self.optim_type, self.lr_, self.model, self.last_cp)
         scheduler = set_scheduler(optimizer, self.exp_metadata, self.last_cp)
-        # criterion = nn.CrossEntropyLoss()
-        criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # To Test!
+        criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
         
         train_loss = load_history(f"{self.checkpoint_path}/../{self.test_name}train_loss.pkl")
         val_loss = load_history(f"{self.checkpoint_path}/../{self.test_name}val_loss.pkl")
@@ -217,14 +266,31 @@ class Trainer():
         val_acc = load_history(f"{self.checkpoint_path}/../{self.test_name}val_accuracy.pkl")
         learning_rates = load_history(f"{self.checkpoint_path}/../{self.test_name}learning_rates.pkl")
          
-        min_loss_t = sys.maxsize
-        min_loss_v = sys.maxsize
+        if train_loss == []: min_loss_t = sys.maxsize
+        else: min_loss_t = np.min(train_loss)
+        if val_loss == []: min_loss_v = sys.maxsize
+        else: min_loss_v = np.min(val_loss)
                 
         start_epoch = self.exp_metadata.get("EPOCHS_COMPLETED", 0) + 1
         tosave_cp_path = f"{self.checkpoint_path}/{self.test_name}"
         
-        for epoch in range(start_epoch, self.num_epochs + 1):
-            self.logger.info(f'Epoch {epoch} / {self.num_epochs}')
+        if self.use_early_stopping:
+            self.logger.warning(f"'Early Stopping' is enabled. Max epochs: {self.max_epochs}")
+            self.logger.warning(f"The check on 'val_loss' will be triggered starting from epoch: {self.num_epochs}")
+            if start_epoch > 1:
+                self.early_stopping = torch.load(self.last_cp)["early_stopping"]
+            self.early_stopping.set_best_val_loss(min_loss_v)
+        
+        for epoch in range(start_epoch, self.max_epochs + 1):
+            self.logger.info(f'Epoch {epoch} / {self.max_epochs}')
+            
+            current_lr = optimizer.param_groups[0]['lr']
+            learning_rates.append(current_lr)
+            if scheduler is not None: self.logger.info(f"Current Learning Rate: {current_lr}")
+            
+            if isinstance(scheduler, CosineAnnealingLR) and epoch == self.num_epochs:
+                scheduler = reset_cos_annealing_scheduler(scheduler, self.max_epochs, self.exp_metadata)
+
             train_epoch_loss, train_epoch_acc = self.train_one_epoch(optimizer, criterion)
             self.logger.info(f"Epoch: {epoch} -> Train Loss: {train_epoch_loss} - Train Accuracy: {train_epoch_acc}")
             val_epoch_loss, val_epoch_acc = self.validate_one_epoch(criterion)
@@ -235,13 +301,10 @@ class Trainer():
             val_loss.append(val_epoch_loss)
             val_acc.append(val_epoch_acc)
             
-            current_lr = optimizer.param_groups[0]['lr']
-            learning_rates.append(current_lr)
-            
             # Save checkpoints and Training stats
-            min_loss_t = save_checkpoint(train_epoch_loss, min_loss_t, self.model, optimizer, scheduler, tosave_cp_path, "train", check=True)
-            min_loss_v = save_checkpoint(val_epoch_loss, min_loss_v, self.model, optimizer, scheduler, tosave_cp_path, "val", check=True)
-            _ = save_checkpoint(train_epoch_loss, None, self.model, optimizer, scheduler, tosave_cp_path, None, check=False)
+            min_loss_t = save_checkpoint(train_epoch_loss, min_loss_t, self.model, optimizer, scheduler, self.early_stopping, tosave_cp_path, "train", check=True)
+            min_loss_v = save_checkpoint(val_epoch_loss, min_loss_v, self.model, optimizer, scheduler, self.early_stopping, tosave_cp_path, "val", check=True)
+            _ = save_checkpoint(train_epoch_loss, None, self.model, optimizer, scheduler, self.early_stopping, tosave_cp_path, None, check=False)
             
             save_history(f"{self.history_path}/{self.test_name}train_loss.pkl", train_loss)
             save_history(f"{self.history_path}/{self.test_name}val_loss.pkl", val_loss)
@@ -258,5 +321,12 @@ class Trainer():
             exp_metadata_path = f"{LOG_ROOT}/{self.test_id}-metadata.json"
             save_metadata(self.exp_metadata, exp_metadata_path)
 
+            if self.use_early_stopping:
+                if epoch <= self.num_epochs: 
+                    _ = self.early_stopping.step_before_trigger(val_epoch_loss)
+                else:
+                    condition = self.early_stopping.step(val_epoch_loss)
+                    if condition: break
+                
     def __call__(self):
         self.train_model()

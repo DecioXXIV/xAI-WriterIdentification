@@ -7,7 +7,7 @@ from utils import str2bool, load_metadata, save_metadata, get_model_base_checkpo
 
 from classifiers.utils.dataloader_utils import Train_DataLoader, Test_DataLoader, load_rgb_mean_std
 from classifiers.utils.training_utils import Trainer, plot_metric, plot_learning_rates
-from classifiers.utils.fine_tune_utils import create_directories, extract_crops_parallel, augment_train_crops_parallel, load_model, test_fine_tuned_model, retrieve_augmentation_crops
+from classifiers.utils.fine_tune_utils import create_directories, extract_crops_parallel, load_model, test_fine_tuned_model, retrieve_augmentation_crops
 
 LOG_ROOT = "./log"
 DATASET_ROOT = "./datasets"
@@ -21,6 +21,7 @@ def get_args():
     parser.add_argument("-opt", type=str, required=True)
     parser.add_argument("-lr", type=float, required=True)
     parser.add_argument("-scheduler", type=str, default=None, choices=["cos_annealing", "reduce_lr_on_plateau"])
+    parser.add_argument("-early_stopping", type=str2bool, default=True)
     parser.add_argument("-train_replicas", type=int, required=True)
     parser.add_argument("-random_seed", type=int, default=None)
     parser.add_argument("-epochs", type=int, default=50)
@@ -53,6 +54,7 @@ if __name__ == '__main__':
     OPT = args.opt
     LR = args.lr
     SCHEDULER = args.scheduler
+    EARLY_STOPPING = args.early_stopping
     TRAIN_REPLICAS = args.train_replicas
     RANDOM_SEED = args.random_seed if args.random_seed is not None else np.random.randint(0, 10e6)
     EPOCHS = args.epochs
@@ -76,9 +78,9 @@ if __name__ == '__main__':
         except: BASE_ID = TEST_ID
         
         if "FINE_TUNING_HP" not in EXP_METADATA:
-            EXP_METADATA["FINE_TUNING_HP"] = {"batch_size": BATCH_SIZE, "optimizer": OPT, "learning_rate": LR, 
-                                            "scheduler": SCHEDULER, "crop_size": CROP_SIZE, "train_replicas": TRAIN_REPLICAS,
-                                            "random_seed": RANDOM_SEED, "total_epochs": EPOCHS, "ft_mode": FT_MODE}
+            EXP_METADATA["FINE_TUNING_HP"] = {"batch_size": BATCH_SIZE, "optimizer": OPT, "learning_rate": LR, "scheduler": SCHEDULER, 
+                                              "early_stopping": EARLY_STOPPING, "crop_size": CROP_SIZE,  "train_replicas": TRAIN_REPLICAS, 
+                                              "random_seed": RANDOM_SEED, "total_epochs": EPOCHS, "ft_mode": FT_MODE}
             save_metadata(EXP_METADATA, EXP_METADATA_PATH)
         
         create_directories(EXP_DIR, CLASSES_DATA.keys())
@@ -109,9 +111,6 @@ if __name__ == '__main__':
                 logger.info(f"'{TEST_ID}' is an 'augmented' experiment: XAI-driven augmented Crops have been added to the Dataset!")
                 
             mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}/train_pre_aug", logger)
-            for c in CLASSES_DATA.keys():
-                logger.info(f"Applying image augmentations to base training Crops of class '{c}'...")
-                augment_train_crops_parallel(EXP_DIR, c, mean_, std_)
             os.rename(f"{EXP_DIR}/train_pre_aug/rgb_train_stats.pkl", f"{EXP_DIR}/rgb_train_stats.pkl")
             
             EXP_METADATA["FINE_TUNING_HP"]["mean"] = mean_
@@ -126,13 +125,16 @@ if __name__ == '__main__':
         logger.info("PHASE 2 -> MODEL FINE-TUNING...")
         os.makedirs(f"{OUTPUT_DIR}/checkpoints", exist_ok=True)
         
-        # For Experiment Reproducibility
-        torch.manual_seed(RANDOM_SEED)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
+        # Uncomment for Experiment Reproducibility
+        # torch.manual_seed(RANDOM_SEED)
+        # torch.backends.cudnn.deterministic = True
+        # torch.backends.cudnn.benchmark = False
+        
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = True
         
         mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}", logger)
-        train_ds = Train_DataLoader(directory=f"{EXP_DIR}/train", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_, shuffle=True)
+        train_ds = Train_DataLoader(directory=f"{EXP_DIR}/train_pre_aug", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_, shuffle=True)
         val_ds = Test_DataLoader(directory=f"{EXP_DIR}/val", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_)
         _, t_dl = train_ds.load_data()
         _, v_dl = val_ds.load_data()
@@ -145,7 +147,7 @@ if __name__ == '__main__':
         pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         logger.info(f'Number of trainable parameters: {pytorch_total_params}')
         
-        trainer = Trainer(model=model, t_set=t_dl, v_set=v_dl, DEVICE=DEVICE, model_path=OUTPUT_DIR, history_path=OUTPUT_DIR, exp_metadata=EXP_METADATA, last_cp=last_cp, logger=logger)
+        trainer = Trainer(model=model, t_set=t_dl, v_set=v_dl, DEVICE=DEVICE, model_path=OUTPUT_DIR, history_path=OUTPUT_DIR, exp_metadata=EXP_METADATA, use_early_stopping=EARLY_STOPPING, last_cp=last_cp, logger=logger)
         trainer()
         
         EXP_METADATA["FINE_TUNING_TIMESTAMP"] = str(datetime.now())
