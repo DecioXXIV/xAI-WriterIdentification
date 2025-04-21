@@ -21,6 +21,7 @@ def get_args():
     parser.add_argument("-mask_ceil", type=float, required=True)
     parser.add_argument("-mask_step", type=float, required=True)
     parser.add_argument("-mask_mode", type=str, required=True, choices=["saliency", "random"])
+    parser.add_argument("-keep_test_sets", type=str2bool, default=False)
     
     return parser.parse_args()
     
@@ -43,6 +44,7 @@ if __name__ == '__main__':
     XAI_MODE = args.xai_mode
     SURROGATE_MODEL = args.surrogate_model
     MASK_CEIL, MASK_STEP, MASK_MODE = args.mask_ceil, args.mask_step, args.mask_mode
+    KEEP_TEST_SETS = args.keep_test_sets
     
     MODEL_TYPE = EXP_METADATA["MODEL_TYPE"]
     DATASET = EXP_METADATA["DATASET"]
@@ -85,6 +87,8 @@ if __name__ == '__main__':
         
         mask_rate_performances = test_model(model, DEVICE, CLASSES, EXP_METADATA, mask_rate, MASK_MODE, exp_eval_directory)
         logger.info(f"TEST ACCURACY FOR M_RATE {mask_rate}: {mask_rate_performances}\n")
+        if not KEEP_TEST_SETS:
+            os.system(f"rm -rf {exp_eval_directory}/test_set_masked_{MASK_MODE}_{mask_rate}")
             
         with open(f"{exp_eval_directory}/faithfulness_{MASK_MODE}_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}.txt", 'a') as f:
             f.write(f"M_RATE: {mask_rate}; TEST ACCURACY: {mask_rate_performances}\n")
