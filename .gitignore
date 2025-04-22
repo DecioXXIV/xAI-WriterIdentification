@@ -177,3 +177,4 @@ xai/masked_images/*
 
 evals/bvr_comparisons/*
 evals/faithfulness/*
+evals/stability/*
