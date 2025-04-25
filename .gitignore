@@ -171,7 +171,6 @@ log/*.json
 
 classifiers/classifier_ResNet18/tests/*
 
-xai/masks/*
 xai/explanations/*
 xai/masked_images/*
 
