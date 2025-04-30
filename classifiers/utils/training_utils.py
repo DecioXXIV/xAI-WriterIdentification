@@ -27,25 +27,24 @@ def save_history(filepath: str, data: List[float]):
         pkl.dump(data, f)
         
 def save_checkpoint(epoch_loss, min_loss, model, optimizer, scheduler, early_stopping, filepath, phase, check=True):
-    state_dict = dict()
-    state_dict["model_state_dict"] = model.state_dict()
-    state_dict["optimizer_state_dict"] = optimizer.state_dict()
-    state_dict["loss"] = epoch_loss
-    if scheduler is not None: state_dict["scheduler_state_dict"] = scheduler.state_dict()
-    if early_stopping is not None: state_dict["early_stopping"] = early_stopping
-    
-    ### CARE! Early Stopping in "save_checkpoint" has to be fixed! ###    
-    
+    checkpoint = {
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': epoch_loss,
+        'scheduler_state_dict': scheduler.state_dict() if scheduler is not None else None,
+        'early_stopping': early_stopping.state_dict() if early_stopping is not None else None
+    }
+     
     # Saving the New Best Checkpoint: check "train_loss" and "val_loss"
     if check is True and epoch_loss <= min_loss:
         checkpoint_path = f"{filepath}{phase}_best_model.pth"
-        torch.save(state_dict, checkpoint_path)
+        torch.save(checkpoint, checkpoint_path)
         return epoch_loss
 
     # Saving the Last Checkpoint: this allows to restore the Training Process if interrupted before its ending
     elif check is False:
         checkpoint_path = f"{filepath}last_checkpoint.pth"
-        torch.save(state_dict, checkpoint_path)
+        torch.save(checkpoint, checkpoint_path)
     
     return min_loss if check else None
 
@@ -139,15 +138,19 @@ def reset_cos_annealing_scheduler(cos_scheduler, total_epochs, exp_metadata):
     return cos_scheduler
     
 class EarlyStopping():
-    def __init__(self, logger, patience=10, delta=0.0, max_epochs=200):
-        self.logger = logger
+    def __init__(self, patience=10, delta=0.0, max_epochs=200):
         self.patience = patience
         self.delta = delta
-        self.max_epochs = max_epochs
+        self.best_val_loss = -np.inf
         self.patience_counter = 0
+        self.early_stop = False
+        self.max_epochs = max_epochs
     
     def set_best_val_loss(self, val_loss):
         self.best_val_loss = val_loss
+        
+    def set_logger(self, logger):
+        self.logger = logger
     
     def step_before_trigger(self, val_loss):
         if val_loss < self.best_val_loss - self.delta:
@@ -158,13 +161,26 @@ class EarlyStopping():
             self.logger.info(f"Validation loss improved from {self.best_val_loss} to {val_loss}. Resetting patience...")
             self.best_val_loss = val_loss
             self.patience_counter = 0
-            return False
         else:
             self.patience_counter += 1
             self.logger.warning(f"Validation loss did not improve. Patience counter: {self.patience_counter}/{self.patience}.")
             if self.patience_counter >= self.patience:
                 self.logger.warning("Early stopping triggered.")
-                return True
+                self.early_stop = True
+        
+        return self.early_stop
+    
+    def state_dict(self):
+        return {
+            'best_val_loss': self.best_val_loss,
+            'patience_counter': self.patience_counter,
+            'early_stop': self.early_stop
+        }
+    
+    def load_state_dict(self, state_dict):
+        self.best_val_loss = state_dict['best_val_loss']
+        self.patience_counter = state_dict['patience_counter']
+        self.early_stop = state_dict['early_stop']
 
 class Trainer():
     def __init__(self, model, t_set, v_set, DEVICE, model_path, history_path, exp_metadata, use_early_stopping=True, last_cp=None, logger=None):
@@ -188,11 +204,12 @@ class Trainer():
         self.test_id = self.exp_metadata["TEST_ID"]
         self.test_name = f"Test_{self.test_id}_MLC_"
 
-        self.max_epochs = None
         if self.use_early_stopping:
-            self.early_stopping = EarlyStopping(self.logger, patience=10, delta=0.0, max_epochs=200)
+            self.early_stopping = EarlyStopping(patience=10, delta=0.0, max_epochs=200)
             self.max_epochs = self.early_stopping.max_epochs
-        else: self.max_epochs = self.num_epochs
+        else: 
+            self.early_stopping = None
+            self.max_epochs = self.num_epochs
     
     def compute_minibatch_accuracy(self, output: torch.Tensor, label: torch.Tensor) -> float:
         max_index = output.argmax(dim=1)
@@ -277,9 +294,9 @@ class Trainer():
         if self.use_early_stopping:
             self.logger.warning(f"'Early Stopping' is enabled. Max epochs: {self.max_epochs}")
             self.logger.warning(f"The check on 'val_loss' will be triggered starting from epoch: {self.num_epochs}")
-            if start_epoch > 1:
-                self.early_stopping = torch.load(self.last_cp)["early_stopping"]
+            if start_epoch > 1: self.early_stopping.load_state_dict(self.last_cp["early_stopping"])
             self.early_stopping.set_best_val_loss(min_loss_v)
+            self.early_stopping.set_logger(self.logger)
         
         for epoch in range(start_epoch, self.max_epochs + 1):
             self.logger.info(f'Epoch {epoch} / {self.max_epochs}')
