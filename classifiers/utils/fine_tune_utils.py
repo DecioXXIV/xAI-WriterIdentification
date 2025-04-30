@@ -1,12 +1,12 @@
 import os, multiprocessing, random, torch
-from torchvision.transforms import v2
 from PIL import Image
 
 from utils import get_train_instance_patterns, get_test_instance_patterns
 
-from classifiers.utils.dataloader_utils import Test_DataLoader, all_crops, Invert, AddGaussianNoise
+from classifiers.utils.dataloader_utils import Test_DataLoader, all_crops
 from classifiers.utils.testing_utils import produce_classification_reports 
 from classifiers.classifier_ResNet18.model import load_resnet18_classifier
+from classifiers.classifier_ViT_SwinTiny.model import load_vit_swintiny_classifier
 
 LOG_ROOT = "./log"
 CLASSIFIERS_ROOT = "./classifiers"
@@ -24,7 +24,10 @@ def create_directories(root_folder, classes):
 def load_model(model_type, num_classes, mode, cp_base, phase, test_id, exp_metadata, device, logger):
     logger.info(f"Loading Model '{model_type}'...")
     model, last_cp = None, None
-    if model_type == "ResNet18": model, last_cp = load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_metadata, device, logger)
+    if model_type == "ResNet18": 
+        model, last_cp = load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_metadata, device, logger)
+    elif model_type == "ViT_SwinTiny":
+        model, last_cp = load_vit_swintiny_classifier(num_classes, phase, test_id, exp_metadata, device, logger)
     
     logger.info("...Model successfully loaded!")
 
@@ -97,49 +100,3 @@ def retrieve_augmentation_crops(test_id, model_type, c):
         src = f"{XAI_AUG_ROOT}/{base_id}/{aug_mode}_{balance}/crops_for_augmentation/{c}/{crop}"
         dst = f"{CLASSIFIERS_ROOT}/classifier_{model_type}/tests/{test_id}/train_pre_aug/{c}/{crop}"
         os.system(f"cp {src} {dst}")
-
-### ################# ###
-### CROP AUGMENTATION ###
-### ################# ###
-def augment_train_crops_parallel(exp_dir, class_name, mean_, std_):
-    base_crops = os.listdir(f"{exp_dir}/train_pre_aug/{class_name}")
-    base_crop_paths = [f"{exp_dir}/train_pre_aug/{class_name}/{crop}" for crop in base_crops]
-
-    num_workers = max(1, multiprocessing.cpu_count() - 1)
-    with multiprocessing.Pool(num_workers) as pool:
-        pool.map(apply_image_augmentations, [(crop_path, exp_dir, class_name, mean_, std_) for crop_path in base_crop_paths])
-    
-### DEPRECATED! ###
-def apply_image_augmentations(args):
-    crop_path, exp_dir, class_name, mean_, std_ = args
-    crop = Image.open(crop_path)
-
-    mean_int = tuple(int(m * 255) for m in mean_)
-    
-    cjitter = {'brightness': [0.4, 1.3], 'contrast': 0.6, 'saturation': 0.6, 'hue': (-0.4, 0.4)}
-    randaffine = {'degrees': [-10,10], 'translate': [0.2, 0.2], 'scale': [1.3, 1.4], 'shear': 1, 'interpolation': v2.InterpolationMode.BILINEAR, 'fill': mean_int}
-    randpersp = {'distortion_scale': 0.1, 'p': 0.2, 'interpolation': v2.InterpolationMode.BILINEAR, 'fill': mean_int}
-    gray_p = 0.2
-    gaussian_blur = {'kernel_size': 3, 'sigma': [0.1, 0.5]}
-    rand_eras = {'p': 0.5, 'scale': [0.02, 0.33], 'ratio': [0.3, 3.3]}
-    rand_eras['value'] = mean_
-    invert_p = 0.05
-    gaussian_noise = {'mean': 0., 'std': 0.004}
-    gn_p = 0.0
-
-    transforms = v2.Compose([
-        v2.RandomAffine(**randaffine),
-        v2.RandomPerspective(**randpersp),
-        v2.ToImage(),
-        v2.ToDtype(torch.float32, scale=True),
-        v2.GaussianBlur(**gaussian_blur),
-        v2.ColorJitter(**cjitter),
-        v2.RandomGrayscale(gray_p),
-        v2.RandomApply([Invert()], p=invert_p),
-        v2.RandomApply([AddGaussianNoise(**gaussian_noise)], p=gn_p),
-        v2.ToPILImage()
-    ])
-
-    crop_name = crop_path.split('/')[-1]
-    augmented_crop = transforms(crop)
-    augmented_crop.save(f"{exp_dir}/train/{class_name}/{crop_name}")
