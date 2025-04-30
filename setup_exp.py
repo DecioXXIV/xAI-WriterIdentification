@@ -2,6 +2,7 @@ import os, logging
 from argparse import ArgumentParser
 
 from utils import save_metadata, datasets2hi, get_logger
+from classifiers import CLASSIFIERS
 
 LOG_ROOT = "./log"
 
@@ -13,7 +14,7 @@ def get_args():
     
     # General parameters
     parser.add_argument("-test_id", type=str, required=True, help="ID for the new Experiment to be performed")
-    parser.add_argument("-model_type", type=str, required=True, choices=["ResNet18"], help="Classifier Type")
+    parser.add_argument("-model_type", type=str, required=True, choices=CLASSIFIERS, help="Classifier Type")
 
     # Data Preparation parameters
     parser.add_argument("-dataset", type=datasets2hi, required=True, help="Dataset employed in the experiment")

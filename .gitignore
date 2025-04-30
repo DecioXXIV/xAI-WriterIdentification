@@ -170,6 +170,7 @@ datasets/VatLat4221/*
 log/*.json
 
 classifiers/classifier_ResNet18/tests/*
+classifiers/classifier_ViT_SwinTiny/tests/*
 
 xai/masks/*
 xai/explanations/*
