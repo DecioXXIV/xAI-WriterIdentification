@@ -95,7 +95,7 @@ class ImageMasker:
         self.logger.info(f"*** MODE = {self.mask_mode}, RATE = {self.mask_rate} ***")
         
         MODEL_TYPE = self.exp_metadata["MODEL_TYPE"]
-        EXP_METADATA_PATH = f"{LOG_ROOT}/{self.test_id}-metadata.json"
+        # EXP_METADATA_PATH = f"{LOG_ROOT}/{self.test_id}-metadata.json"
                 
         for inst, path in zip(self.instances, self.paths):
             _ = self.mask_full_instance(inst, path)
@@ -116,8 +116,8 @@ class ImageMasker:
             
         self.logger.info(f"*** Experiment: {self.test_id} -> END OF MASKING PROCESS FOR TEST ***\n")
         
-        self.exp_metadata[f"MASK_PROCESS_{self.inst_set}_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}_{self.xai_mode}_END_TIMESTAMP"] = str(datetime.now())
-        save_metadata(self.exp_metadata, EXP_METADATA_PATH)
+        # self.exp_metadata[f"MASK_PROCESS_{self.inst_set}_{self.mask_mode}_{self.mask_rate}_{self.xai_algorithm}_{self.xai_mode}_END_TIMESTAMP"] = str(datetime.now())
+        # save_metadata(self.exp_metadata, EXP_METADATA_PATH)
 
 ### Subclasses ###
 class SaliencyMasker(ImageMasker):

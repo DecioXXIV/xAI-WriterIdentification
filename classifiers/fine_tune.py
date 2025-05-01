@@ -106,9 +106,9 @@ if __name__ == '__main__':
             logger.info("Base training Crops Extracted!")
             
             if "augmented" in TEST_ID:
+                logger.info(f"'{TEST_ID}' is an 'augmented' experiment: XAI-driven augmented Crops have been added to the Dataset!")
                 for c in CLASSES_DATA.keys(): 
                     retrieve_augmentation_crops(TEST_ID, MODEL_TYPE, c)
-                logger.info(f"'{TEST_ID}' is an 'augmented' experiment: XAI-driven augmented Crops have been added to the Dataset!")
                 
             mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}/train_pre_aug", logger)
             os.rename(f"{EXP_DIR}/train_pre_aug/rgb_train_stats.pkl", f"{EXP_DIR}/rgb_train_stats.pkl")

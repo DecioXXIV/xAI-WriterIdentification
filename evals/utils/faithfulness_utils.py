@@ -1,9 +1,9 @@
-import os, torch
+import os
 import pickle as pkl
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score
 
-from utils import load_metadata, get_test_instance_patterns
+from utils import get_test_instance_patterns
 
 from xai.maskers.image_masker import SaliencyMasker, RandomMasker
 

@@ -48,7 +48,7 @@ if __name__ == '__main__':
     os.makedirs(f"{DATASET_ROOT}/{DATASET}/processed", exist_ok = True)
     
     # If the current experiment is "ret", retrieve the original 'test' instances first
-    if RET_ID is not None:
+    if RET_ID is not None and "ret" in RET_ID:
         logger.info(f"'{TEST_ID}' is a 'ret' experiment: Training (masked) instances are already in the folder, ready to be prepared; Test (not-masked) instances need to be retrieved!")
         for c, c_type in CLASSES_DATA.items(): 
             copy_not_masked_test_instances(c, c_type, DATASET, TEST_ID, MODEL_TYPE)
