@@ -24,7 +24,6 @@ def add_fc_layer(type_fc_layer, in_f, out_f):
         components.append(fc)
  
         components.append(nn.BatchNorm1d(out_f))
-        # components.append(nn.ReLU())
         components.append(nn.GELU())
  
         fc_block = nn.Sequential(*components)
@@ -87,11 +86,14 @@ class ViT_SwinTiny_Classifier(nn.Module):
         self.base_model = BaseModel()
         self.num_classes = num_classes
         self.fc_layers = nn.Sequential()
-        # self.fc_layers.add_module('head', add_fc_layer('last', 768, self.num_classes))
         
         self.fc_layers.add_module("ch0", add_fc_layer("hidden", 768, 128))
         self.fc_layers.add_module("ch1", add_fc_layer("last", 128, self.num_classes))
  
+    def extract_vis_features(self, x):
+        x = self.base_model.enc(x)
+        return x.squeeze()
+        
     def forward(self, x):
         x = self.base_model(x)
         if x.dim() == 1: x = x.unsqueeze(0)
