@@ -58,6 +58,8 @@ def load_resnet18_classifier(num_classes, mode, cp_base, phase, test_id, exp_met
             last_cp_path = f"{CLASSIFIERS_ROOT}/classifier_ResNet18/tests/{base_id}/output/checkpoints/Test_{base_id}_MLC_val_best_model.pth"
             last_cp = torch.load(last_cp_path)
             model.load_state_dict(last_cp['model_state_dict'])
+            ### Load Optimizer State Dict
+            ### Load Scheduler State Dict
             
             logger.warning(f"'{test_id}' is a 'refined' experiment: the Fine-Tuning will start from the model already fine-tuned for '{base_id}'")
         

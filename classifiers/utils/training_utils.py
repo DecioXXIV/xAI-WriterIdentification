@@ -37,6 +37,7 @@ def save_checkpoint(epoch_loss, min_loss, model, optimizer, scheduler, early_sto
      
     # Saving the New Best Checkpoint: check "train_loss" and "val_loss"
     if check is True and epoch_loss <= min_loss:
+        # if "early_stopping" in checkpoint: checkpoint.pop("early_stopping")
         checkpoint_path = f"{filepath}{phase}_best_model.pth"
         torch.save(checkpoint, checkpoint_path)
         return epoch_loss
