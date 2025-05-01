@@ -17,11 +17,12 @@ def str2bool(value):
     elif value.lower() in ('no', 'false', 'f', 'n', '0'): return False
     else: raise ArgumentTypeError("Boolean value expected (true/false).")
 
-def xaiaug2str(value: str):
+def cropeval2str(value: str):
     if value.lower() in ("pi", "protect and inform", "protect_inform"): return "pi"
     elif value.lower() in ("lr", "lime reds", "lime_reds"): return "lr"
     elif value.lower() in ("wo", "world opening", "world_opening"): return "wo"
     elif value.lower() in ("rand", "random"): return "rand"
+    elif value.lower() in ("hybrid", "h", "hyb"): return "hybrid"
     else: raise ArgumentTypeError("Unrecognized XAI Augmentation Mode")
 
 def datasets2hi(value: str):
@@ -125,11 +126,22 @@ def get_model_base_checkpoint(model_type):
     if model_type == "ResNet18":
         return f"{CLASSIFIERS_ROOT}/classifier_{model_type}/cp/Test_3_TL_val_best_model.pth"
 
+### ########### ###
+### MODEL UTILS ###
+### ########### ###
+def get_model_final_crop_size(model_type):
+    if model_type == "ResNet18": return 380
+    elif model_type == "ViT_SwinTiny": return 224
+
+def get_model_last_encoder_layer_dim(model_type):
+    if model_type == "ResNet18": return 512
+    elif model_type == "ViT_SwinTiny": return 768
+
 ### ############################## ###
 ### BATCH PREDICT FOR EXPLANATIONS ###
 ### ############################## ###
 def get_batch_predict_function(model_type):
-    if model_type == "ResNet18":
+    if model_type == "ResNet18" or model_type == "ViT_SwinTiny":
         def batch_predict(model, inputs, mean, std):
             model.eval()
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
