@@ -2,6 +2,7 @@ import os, torch
 import numpy as np
 import pickle as pkl
 from argparse import ArgumentParser
+from datetime import datetime
 
 from utils import load_metadata, save_metadata, get_model_base_checkpoint, get_logger, str2bool
 
@@ -85,7 +86,7 @@ if __name__ == '__main__':
         
         else: mask_test_instances(instances, paths, TEST_ID, EXP_DIR, mask_rate, MASK_MODE, PATCH_WIDTH, PATCH_HEIGHT, XAI_ALGORITHM, XAI_MODE, SURROGATE_MODEL, EXP_METADATA, logger)
         
-        mask_rate_performances = test_model(model, DEVICE, CLASSES, EXP_METADATA, mask_rate, MASK_MODE, exp_eval_directory)
+        mask_rate_performances = test_model(model, DEVICE, CLASSES, EXP_METADATA, mask_rate, MASK_MODE, exp_eval_directory, logger)
         logger.info(f"TEST ACCURACY FOR M_RATE {mask_rate}: {mask_rate_performances}\n")
         if not KEEP_TEST_SETS:
             os.system(f"rm -rf {exp_eval_directory}/test_set_masked_{MASK_MODE}_{mask_rate}")
@@ -116,5 +117,6 @@ if __name__ == '__main__':
     if os.path.exists(faithfulness_saliency_path) and os.path.exists(faithfulness_random_path):
         produce_faithfulness_comparison_plot(MASK_STEP, MASK_CEIL, exp_eval_directory)
     
+    EXP_METADATA[f"{XAI_ALGORITHM}_{XAI_MODE}_{SURROGATE_MODEL}_METADATA"]["faithfulness_evals"] = dict()
     EXP_METADATA[f"{XAI_ALGORITHM}_{XAI_MODE}_{SURROGATE_MODEL}_METADATA"]["faithfulness_evals"][f"{MASK_MODE}_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}"] = str(datetime.now())
     save_metadata(EXP_METADATA, EXP_METADATA_PATH)

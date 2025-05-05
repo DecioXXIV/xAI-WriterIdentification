@@ -48,13 +48,14 @@ def mask_test_instances(instances, paths, test_id, exp_dir, mask_rate, mask_mode
     
     masker()
 
-def test_model(model, device, classes, exp_metadata, mask_rate, mask_mode, exp_eval_directory):
+def test_model(model, device, classes, exp_metadata, mask_rate, mask_mode, exp_eval_directory, logger):
     test_set_dir = f"{exp_eval_directory}/test_set_masked_{mask_mode}_{mask_rate}"
     crop_size = exp_metadata["FINE_TUNING_HP"]["crop_size"]
     mean_, std_ = exp_metadata["FINE_TUNING_HP"]["mean"], exp_metadata["FINE_TUNING_HP"]["std"]
     
     dl = Eval_Test_DataLoader(test_set_dir, classes, 1, crop_size, 2, mean_, std_)
     
+    logger.info(f"Test Accuracy Evaluation for '{mask_mode}' Masking and '{mask_rate}' Mask Rate")
     _, labels, preds, _, idx_to_c = process_test_set(dl, device, model)
     label_class_names = [idx_to_c[id_] for id_ in labels]
     pred_class_names = [idx_to_c[id_] for id_ in preds]
