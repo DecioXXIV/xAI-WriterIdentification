@@ -166,6 +166,7 @@ datasets/CVL/*
 datasets/VatLat653/*
 datasets/VatLat5951b/*
 datasets/VatLat4221/*
+datasets/KolnWomen/*
 
 log/*.json
 
