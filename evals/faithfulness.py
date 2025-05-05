@@ -119,6 +119,7 @@ if __name__ == '__main__':
     if os.path.exists(faithfulness_saliency_path) and os.path.exists(faithfulness_random_path):
         produce_faithfulness_comparison_plot(MASK_STEP, MASK_CEIL, exp_eval_directory)
     
-    EXP_METADATA[f"{XAI_ALGORITHM}_{XAI_MODE}_{SURROGATE_MODEL}_METADATA"]["faithfulness_evals"] = dict()
+    if "faithfulness_evals" not in EXP_METADATA[f"{XAI_ALGORITHM}_{XAI_MODE}_{SURROGATE_MODEL}_METADATA"]:
+        EXP_METADATA[f"{XAI_ALGORITHM}_{XAI_MODE}_{SURROGATE_MODEL}_METADATA"]["faithfulness_evals"] = dict()
     EXP_METADATA[f"{XAI_ALGORITHM}_{XAI_MODE}_{SURROGATE_MODEL}_METADATA"]["faithfulness_evals"][f"{MASK_MODE}_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}"] = str(datetime.now())
     save_metadata(EXP_METADATA, EXP_METADATA_PATH)
