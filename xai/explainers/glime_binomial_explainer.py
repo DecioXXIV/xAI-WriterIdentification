@@ -8,12 +8,13 @@ from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
 from utils import get_batch_predict_function
 
 class GLimeBinomialExplainer(object):
-    def __init__(self, model_type, model, model_regressor, mean, std, num_samples, kernel_width=0.25):
+    def __init__(self, model_type, model, model_regressor, mean, std, num_samples, batch_size=None, kernel_width=0.25):
         self.model_type = model_type
         self.model = model
         self.mean = mean
         self.std = std
         self.num_samples = num_samples
+        self.batch_size = batch_size
         self.kernel_width = kernel_width
         
         self.model_regressor = None
@@ -65,7 +66,7 @@ class GLimeBinomialExplainer(object):
         data = np.array(data)
         data[0, :] = 1
 
-        samples = list()
+        samples, preds = list(), list()
         n_maskings = list()
         sp_names = np.unique(segments)
         for row in data:
@@ -76,7 +77,17 @@ class GLimeBinomialExplainer(object):
             for idx in sp_idxs_to_zero: mask[np.where(segments == sp_names[idx])] = True
             sample[mask] = fudged_image[mask]
             samples.append(sample)
+            
+            if self.batch_size is not None and len(samples) == self.batch_size:
+                batch_preds = self.classifier_fn(self.model, samples, self.mean, self.std)
+                preds.extend(batch_preds.tolist())
+                samples = list()
         
-        preds = self.classifier_fn(self.model, samples, self.mean, self.std)
+        if self.batch_size is not None and len(samples) > 0:
+            final_batch_preds = self.classifier_fn(self.model, samples, self.mean, self.std)
+            preds.extend(final_batch_preds.tolist())
+        
+        elif self.batch_size is None:
+            preds = self.classifier_fn(self.model, samples, self.mean, self.std).tolist()
 
-        return data, preds, n_maskings
+        return data, np.array(preds), n_maskings

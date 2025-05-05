@@ -62,6 +62,7 @@ if __name__ == '__main__':
 
     DATASET = EXP_METADATA["DATASET"]
     MODEL_TYPE = EXP_METADATA["MODEL_TYPE"]
+    BATCH_SIZE = EXP_METADATA["FINE_TUNING_HP"]["batch_size"]
     CLASSES_DATA = EXP_METADATA["CLASSES"]
     classes = list(CLASSES_DATA.keys())
     num_classes = len(classes)
@@ -115,7 +116,7 @@ if __name__ == '__main__':
     mean, std = EXP_METADATA["FINE_TUNING_HP"]["mean"], EXP_METADATA["FINE_TUNING_HP"]["std"]
     
     logger.info(f"Setting-up '{XAI_ALGORITHM}' as Explainer")
-    explainer = setup_explainer(XAI_ALGORITHM, SURROGATE_MODEL, MODEL_TYPE, model, NUM_SAMPLES, KERNEL_WIDTH, mean, std)
+    explainer = setup_explainer(XAI_ALGORITHM, SURROGATE_MODEL, MODEL_TYPE, model, NUM_SAMPLES, BATCH_SIZE, KERNEL_WIDTH, mean, std)
     
     BASE_ID, RET_ID = None, None
     try: BASE_ID, RET_ID = TEST_ID.split(':')

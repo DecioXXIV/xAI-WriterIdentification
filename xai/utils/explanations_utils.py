@@ -66,11 +66,11 @@ def assign_attr_scores_to_mask(base_mask, scores):
 
     return base_mask_array
 
-def setup_explainer(xai_algorithm, surrogate_model, model_type, model, num_samples, kernel_width, mean, std):
+def setup_explainer(xai_algorithm, surrogate_model, model_type, model, num_samples, batch_size, kernel_width, mean, std):
     if xai_algorithm == "LimeBase":
-        return LimeBaseExplainer(model_type, model, surrogate_model, mean, std, num_samples, kernel_width)
+        return LimeBaseExplainer(model_type, model, surrogate_model, mean, std, num_samples, batch_size, kernel_width)
     elif xai_algorithm == "GLimeBinomial":
-        return GLimeBinomialExplainer(model_type, model, surrogate_model, mean, std, num_samples, kernel_width)
+        return GLimeBinomialExplainer(model_type, model, surrogate_model, mean, std, num_samples, batch_size, kernel_width)
 
 def explain_instance(explainer, img, img_rows, img_cols, instance_name, label, mask, mask_rows, mask_cols, output_dir, crop_size, overlap, iters):
     scores = dict()
