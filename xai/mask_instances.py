@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 
 from utils import load_metadata, get_logger
 
+from xai import EXPLAINERS, SURROGATES, MASK_MODES
 from xai.maskers.image_masker import SaliencyMasker, RandomMasker
 from xai.utils.mask_utils import setup_masking_process
 
@@ -10,12 +11,12 @@ LOG_ROOT = "./log"
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("-test_id", type=str, required=True)
-    parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase", "GLimeBinomial"])
+    parser.add_argument("-xai_algorithm", type=str, required=True, choices=EXPLAINERS)
     parser.add_argument("-xai_mode", type=str, default="base")
-    parser.add_argument("-surrogate_model", type=str, required=True, choices=["LinReg", "Ridge", "Lasso", "ElasticNet"])
+    parser.add_argument("-surrogate_model", type=str, required=True, choices=SURROGATES)
     parser.add_argument("-instances", type=str, required=True, choices=["train", "test"])
     parser.add_argument("-mask_rate", type=float, required=True)
-    parser.add_argument("-mask_mode", type=str, required=True, choices=["saliency", "random"])
+    parser.add_argument("-mask_mode", type=str, required=True, choices=MASK_MODES)
 
     return parser.parse_args()
  

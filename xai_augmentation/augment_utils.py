@@ -2,6 +2,7 @@ import os, torch, json
 import numpy as np
 import torchvision.transforms as T
 import torch.nn.functional as F
+from argparse import ArgumentTypeError
 from PIL import Image
 from tqdm import tqdm
 from sklearn.decomposition import PCA
@@ -15,6 +16,14 @@ DATASET_ROOT = "./datasets"
 CLASSIFIERS_ROOT = "./classifiers"
 XAI_ROOT = "./xai"
 XAI_AUG_ROOT = "./xai_augmentation"
+
+def crop_eval_str(value: str):
+    if value.lower() in ("pi", "protect and inform", "protect_inform"): return "pi"
+    elif value.lower() in ("lr", "lime reds", "lime_reds"): return "lr"
+    elif value.lower() in ("wo", "world opening", "world_opening"): return "wo"
+    elif value.lower() in ("rand", "random"): return "rand"
+    elif value.lower() in ("hybrid", "h", "hyb"): return "hybrid"
+    else: raise ArgumentTypeError("Unrecognized XAI Augmentation Mode")
 
 def retrieve_pages(root_dir, dataset, xai_exp_dir, classes):    
     train_instance_patterns = get_train_instance_patterns()

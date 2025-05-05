@@ -3,6 +3,8 @@ from argparse import ArgumentParser
 
 from utils import get_logger
 
+from xai import EXPLAINERS
+
 from evals.utils.compare_utils import pair_confidence_test, pair_explanations_test
 
 def get_args():
@@ -10,7 +12,7 @@ def get_args():
     parser.add_argument("-base_id", type=str, required=True)
     parser.add_argument("-ret_id", type=str, required=True)
     parser.add_argument("-subject", type=str, required=True, choices=["confidence", "explanations"])
-    parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase", "GLimeBinomial"])
+    parser.add_argument("-xai_algorithm", type=str, required=True, choices=EXPLAINERS)
     parser.add_argument("-xai_mode", type=str, default="base")
     
     return parser.parse_args()

@@ -8,6 +8,8 @@ from utils import load_metadata, save_metadata, get_model_base_checkpoint, get_l
 
 from classifiers.utils.fine_tune_utils import load_model
 
+from xai import EXPLAINERS, SURROGATES, MASK_MODES
+
 from evals.utils.faithfulness_utils import get_test_instances_to_mask, mask_test_instances, test_model, produce_faithfulness_comparison_plot
 
 LOG_ROOT = "./log"
@@ -16,12 +18,12 @@ EVAL_ROOT = "./evals"
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("-test_id", type=str, required=True)
-    parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase", "GLimeBinomial"])
+    parser.add_argument("-xai_algorithm", type=str, required=True, choices=EXPLAINERS)
     parser.add_argument("-xai_mode", type=str, default="base")
-    parser.add_argument("-surrogate_model", type=str, required=True, choices=["LinReg", "Ridge", "Lasso", "ElasticNet"])
+    parser.add_argument("-surrogate_model", type=str, required=True, choices=SURROGATES)
     parser.add_argument("-mask_ceil", type=float, required=True)
     parser.add_argument("-mask_step", type=float, required=True)
-    parser.add_argument("-mask_mode", type=str, required=True, choices=["saliency", "random"])
+    parser.add_argument("-mask_mode", type=str, required=True, choices=MASK_MODES)
     parser.add_argument("-keep_test_sets", type=str2bool, default=False)
     
     return parser.parse_args()

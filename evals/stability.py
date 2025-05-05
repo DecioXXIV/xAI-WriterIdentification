@@ -3,6 +3,8 @@ from argparse import ArgumentParser
 
 from utils import load_metadata, get_logger
 
+from xai import EXPLAINERS, SURROGATES
+
 from evals.utils.stability_utils import get_instances, get_faith_evaluated_xai_modes, collect_all_instances_attr_scores_per_patch_parallel, get_mode_pairs, produce_instances_abs_differences_report_parallel, compute_global_abs_differences_stats, produce_instances_jaccard_report_parallel
 
 LOG_ROOT = "./log"
@@ -13,8 +15,8 @@ EVAL_ROOT = "./evals"
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("-test_id", type=str, required=True)
-    parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase", "GLimeBinomial"])
-    parser.add_argument("-surrogate_model", type=str, required=True, choices=["Ridge"])
+    parser.add_argument("-xai_algorithm", type=str, required=True, choices=EXPLAINERS)
+    parser.add_argument("-surrogate_model", type=str, required=True, choices=SURROGATES)
     parser.add_argument("-xai_modes", type=str, default=None)
     parser.add_argument("-stability_eval_name", type=str, required=True)
 

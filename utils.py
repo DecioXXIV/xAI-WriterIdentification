@@ -17,25 +17,6 @@ def str2bool(value):
     elif value.lower() in ('no', 'false', 'f', 'n', '0'): return False
     else: raise ArgumentTypeError("Boolean value expected (true/false).")
 
-def cropeval2str(value: str):
-    if value.lower() in ("pi", "protect and inform", "protect_inform"): return "pi"
-    elif value.lower() in ("lr", "lime reds", "lime_reds"): return "lr"
-    elif value.lower() in ("wo", "world opening", "world_opening"): return "wo"
-    elif value.lower() in ("rand", "random"): return "rand"
-    elif value.lower() in ("hybrid", "h", "hyb"): return "hybrid"
-    else: raise ArgumentTypeError("Unrecognized XAI Augmentation Mode")
-
-def datasets2hi(value: str):
-    valid_datasets = os.listdir(DATASETS_ROOT)
-    if "__pycache__" in valid_datasets: valid_datasets.remove("__pycache__")
-    valid_datasets.remove("__init__.py")
-    valid_datasets.remove("prepare_pages.py")
-    valid_datasets.remove("dataset_utils.py")
-    
-    value = value.strip()
-    if value in valid_datasets: return value
-    else: raise ArgumentTypeError("Unrecognized Dataset")
-
 ### ################# ###
 ### METADATA HANDLING ###
 ### ################# ###

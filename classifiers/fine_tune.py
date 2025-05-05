@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 
 from utils import str2bool, load_metadata, save_metadata, get_model_base_checkpoint, get_logger
 
+from classifiers import SCHEDULERS, FT_MODES
 from classifiers.utils.dataloader_utils import Train_DataLoader, Test_DataLoader, load_rgb_mean_std
 from classifiers.utils.training_utils import Trainer, plot_metric, plot_learning_rates
 from classifiers.utils.fine_tune_utils import create_directories, extract_crops_parallel, load_model, test_fine_tuned_model, retrieve_augmentation_crops
@@ -20,12 +21,12 @@ def get_args():
     parser.add_argument("-batch_size", type=int, required=True)
     parser.add_argument("-opt", type=str, required=True)
     parser.add_argument("-lr", type=float, required=True)
-    parser.add_argument("-scheduler", type=str, default=None, choices=["cos_annealing", "reduce_lr_on_plateau"])
+    parser.add_argument("-scheduler", type=str, default=None, choices=SCHEDULERS)
     parser.add_argument("-early_stopping", type=str2bool, default=True)
     parser.add_argument("-train_replicas", type=int, required=True)
     parser.add_argument("-random_seed", type=int, default=None)
     parser.add_argument("-epochs", type=int, default=50)
-    parser.add_argument("-ft_mode", type=str, default="frozen", choices=["frozen", "full"])
+    parser.add_argument("-ft_mode", type=str, default="frozen", choices=FT_MODES)
     parser.add_argument("-keep_crops", type=str2bool, default=False)
     
     return parser.parse_args()

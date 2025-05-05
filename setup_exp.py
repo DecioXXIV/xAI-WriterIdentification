@@ -1,7 +1,8 @@
 import os, logging
 from argparse import ArgumentParser
 
-from utils import save_metadata, datasets2hi, get_logger
+from utils import save_metadata, get_logger
+from datasets import DATASETS
 from classifiers import CLASSIFIERS
 
 LOG_ROOT = "./log"
@@ -17,7 +18,7 @@ def get_args():
     parser.add_argument("-model_type", type=str, required=True, choices=CLASSIFIERS, help="Classifier Type")
 
     # Data Preparation parameters
-    parser.add_argument("-dataset", type=datasets2hi, required=True, help="Dataset employed in the experiment")
+    parser.add_argument("-dataset", type=str, required=True, help="Dataset employed in the experiment", choices=DATASETS)
     parser.add_argument("-classes", type=str, required=True, help="Comma-separated list of classes")
     parser.add_argument("-class_types", type=str, required=True, help="Comma-separated list of class types ('Base'/'Masked')")
     

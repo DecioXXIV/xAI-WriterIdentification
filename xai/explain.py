@@ -6,6 +6,7 @@ from PIL import Image
 from utils import load_metadata, save_metadata, str2bool, get_model_base_checkpoint, get_logger
 from classifiers.utils.fine_tune_utils import load_model
 
+from xai import EXPLAINERS, SURROGATES
 from xai.utils.image_utils import produce_padded_page, generate_mask
 from xai.utils.explanations_utils import get_instances_to_explain, setup_explainer, explain_instance, visualize_exp_outcome
 
@@ -20,8 +21,8 @@ def get_args():
     parser.add_argument("-patch_width", type=int, required=True)
     parser.add_argument("-patch_height", type=int, required=True)
     parser.add_argument("-overlap", type=float, required=True)
-    parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase", "GLimeBinomial"])
-    parser.add_argument("-surrogate_model", type=str, required=True, choices=["LinReg", "Ridge", "Lasso", "ElasticNet"])
+    parser.add_argument("-xai_algorithm", type=str, required=True, choices=EXPLAINERS)
+    parser.add_argument("-surrogate_model", type=str, required=True, choices=SURROGATES)
     parser.add_argument("-num_samples", type=int, default=100)
     parser.add_argument("-kernel_width", type=float, default=None)
     parser.add_argument("-mode", type=str, default="base")

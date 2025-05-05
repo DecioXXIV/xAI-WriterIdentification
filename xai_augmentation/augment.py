@@ -2,12 +2,14 @@ import os, torch
 from argparse import ArgumentParser
 from datetime import datetime
 
-from utils import cropeval2str, str2bool, get_logger, load_metadata, save_metadata
+from utils import str2bool, get_logger, load_metadata, save_metadata
 
 from classifiers.utils.fine_tune_utils import load_model
 from classifiers.utils.dataloader_utils import Eval_Test_DataLoader, load_rgb_mean_std
 
-from xai_augmentation.augment_utils import retrieve_pages, setup_dimensionality_reduction, extract_class_mean_vectors, compute_augmentation_rates, extract_augmented_crops
+from xai import EXPLAINERS, SURROGATES
+
+from xai_augmentation.augment_utils import crop_eval_str, retrieve_pages, setup_dimensionality_reduction, extract_class_mean_vectors, compute_augmentation_rates, extract_augmented_crops
 
 LOG_ROOT = "./log"
 CLASSIFIERS_ROOT = "./classifiers"
@@ -17,10 +19,10 @@ XAI_AUG_ROOT = "./xai_augmentation"
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("-test_id", type=str, required=True)
-    parser.add_argument("-xai_algorithm", type=str, required=True, choices=["LimeBase", "GLimeBinomial"])
+    parser.add_argument("-xai_algorithm", type=str, required=True, choices=EXPLAINERS)
     parser.add_argument("-xai_mode", type=str, default="base")
-    parser.add_argument("-surrogate_model", type=str, required=True, choices=["LinReg", "Ridge", "Lasso", "ElasticNet"])
-    parser.add_argument("-crop_eval_mode", type=cropeval2str, required=True)
+    parser.add_argument("-surrogate_model", type=str, required=True, choices=SURROGATES)
+    parser.add_argument("-crop_eval_mode", type=crop_eval_str, required=True)
     parser.add_argument("-keep_balanced", type=str2bool, default=True)
     
     return parser.parse_args()
@@ -57,7 +59,7 @@ if __name__ == "__main__":
     
     model, _ = load_model(MODEL_TYPE, len(CLASSES_DATA), "frozen", CP, "test", TEST_ID, EXP_METADATA, DEVICE, logger)
 
-    root_dir = f"{XAI_AUG_ROOT}/{TEST_ID}/{CROP_EVAL_MODE}_balanced" if KEEP_BALANCED else f"{XAI_AUG_ROOT}/{TEST_ID}/{CROP_EVAL_MODE}_notbalanced"
+    root_dir = f"{XAI_AUG_ROOT}/tests/{TEST_ID}/{CROP_EVAL_MODE}_balanced" if KEEP_BALANCED else f"{XAI_AUG_ROOT}/tests/{TEST_ID}/{CROP_EVAL_MODE}_notbalanced"
         
     os.makedirs(root_dir, exist_ok=True)
     retrieve_pages(root_dir, DATASET, XAI_EXP_DIR, CLASSES)
