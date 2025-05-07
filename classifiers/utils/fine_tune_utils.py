@@ -40,7 +40,7 @@ def test_fine_tuned_model(test_id, exp_metadata, model_type, crop_size, OUTPUT_D
     model, _ = load_model(model_type, len(CLASSES_DATA), "frozen", CP_BASE, "test", test_id, exp_metadata, device, logger)
         
     n_crops_per_test_instance = exp_metadata["FINE_TUNING_HP"]["n_crops_per_test_instance"]
-    dl = Test_DataLoader(directory=f"{exp_dir}/test", classes=list(CLASSES_DATA.keys()), batch_size=n_crops_per_test_instance, img_crop_size=crop_size, mean=mean_, std=std_)
+    dl = Test_DataLoader(model_type=model_type, directory=f"{exp_dir}/test", classes=list(CLASSES_DATA.keys()), batch_size=n_crops_per_test_instance, img_crop_size=crop_size, mean=mean_, std=std_)
     produce_classification_reports(dl, device, model, OUTPUT_DIR, test_id)
 
 ### ############### ###

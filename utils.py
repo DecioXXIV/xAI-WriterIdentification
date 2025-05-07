@@ -130,8 +130,9 @@ def get_batch_predict_function(model_type):
         def batch_predict(model, inputs, mean, std):
             model.eval()
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            model_final_crop_size = get_model_final_crop_size(model_type)
 
-            t_transforms = T.Compose([T.ToTensor(), T.Normalize(mean, std)])
+            t_transforms = T.Compose([T.Resize((model_final_crop_size, model_final_crop_size)), T.ToTensor(), T.Normalize(mean, std)])
             batch = torch.stack(tuple(t_transforms(i) for i in inputs), dim=0)
 
             model.to(device)

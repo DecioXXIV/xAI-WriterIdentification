@@ -7,7 +7,7 @@ from PIL import Image
 from tqdm import tqdm
 from sklearn.decomposition import PCA
 
-from utils import get_train_instance_patterns, get_test_instance_patterns, get_page_dimensions, get_model_last_encoder_layer_dim
+from utils import get_train_instance_patterns, get_test_instance_patterns, get_page_dimensions, get_model_last_encoder_layer_dim, get_model_final_crop_size
 
 from classifiers.utils.testing_utils import process_test_set
 
@@ -191,7 +191,7 @@ def get_crop_from_patch(dataset, crop_size, patch_width, patch_height, left_b_pa
     
     return (left_b_crop, top_b_crop, right_b_crop, bottom_b_crop), (left_b_crop_to_pad, top_b_crop_to_pad, right_b_crop_to_pad, bottom_b_crop_to_pad)
 
-def extract_augmented_crops_protect_inform(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, overlap, patch_width, patch_height, mean_, std_, pca, model, device):  
+def extract_augmented_crops_protect_inform(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, overlap, patch_width, patch_height, mean_, std_, pca, model, model_type, device):  
     instance_names = os.listdir(f"{root_dir}/train_instances/{c}")
     mask = Image.open(f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}_cs{crop_size}_overlap{overlap}/mask.png")
     mask_array = np.array(mask, dtype=np.float64)
@@ -226,6 +226,8 @@ def extract_augmented_crops_protect_inform(root_dir, xai_exp_dir, dataset, c, c_
                 mean_int = tuple(int(m * 255) for m in mean_)
                 crop = T.Pad(pad_coordinates, fill=mean_int)(crop)
                     
+                model_final_crop_size = get_model_final_crop_size(model_type)
+                crop = T.Resize((model_final_crop_size, model_final_crop_size))
                 tensor_crop = T.ToTensor()(crop)
                 normalized_tensor_crop = T.Normalize(mean_, std_)(tensor_crop)
                 normalized_tensor_crop = normalized_tensor_crop.to(device)
@@ -300,7 +302,7 @@ def extract_augmented_crops_lime_reds(root_dir, xai_exp_dir, dataset, c, crop_si
     
     return results
 
-def extract_augmented_crops_world_opening(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, overlap, patch_width, patch_height, mean_, std_, pca, model, device):
+def extract_augmented_crops_world_opening(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, overlap, patch_width, patch_height, mean_, std_, pca, model, model_type, device):
     instance_names = os.listdir(f"{root_dir}/train_instances/{c}")
     mask = Image.open(f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}_cs{crop_size}_overlap{overlap}/mask.png")
     mask_array = np.array(mask, dtype=np.float64)
@@ -334,6 +336,8 @@ def extract_augmented_crops_world_opening(root_dir, xai_exp_dir, dataset, c, c_t
                 mean_int = tuple(int(m * 255) for m in mean_)
                 crop = T.Pad(pad_coordinates, fill=mean_int)(crop)
                     
+                model_final_crop_size = get_model_final_crop_size(model_type)
+                crop = T.Resize((model_final_crop_size, model_final_crop_size))
                 tensor_crop = T.ToTensor()(crop)
                 normalized_tensor_crop = T.Normalize(mean_, std_)(tensor_crop)
                 normalized_tensor_crop = normalized_tensor_crop.to(device)
@@ -358,7 +362,7 @@ def extract_augmented_crops_world_opening(root_dir, xai_exp_dir, dataset, c, c_t
     
     return results
 
-def extract_augmented_crops_hybrid(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, overlap, patch_width, patch_height, mean_, std_, pca, model, device):
+def extract_augmented_crops_hybrid(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, overlap, patch_width, patch_height, mean_, std_, pca, model, model_type, device):
     instance_names = os.listdir(f"{root_dir}/train_instances/{c}")
     mask = Image.open(f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}_cs{crop_size}_overlap{overlap}/mask.png")
     mask_array = np.array(mask, dtype=np.float64)
@@ -393,6 +397,8 @@ def extract_augmented_crops_hybrid(root_dir, xai_exp_dir, dataset, c, c_to_idx, 
                 crop = T.Pad(pad_coordinates, fill=mean_int)(crop)
                     
                 # Computation of PI UTILITY
+                model_final_crop_size = get_model_final_crop_size(model_type)
+                crop = T.Resize((model_final_crop_size, model_final_crop_size))
                 tensor_crop = T.ToTensor()(crop)
                 normalized_tensor_crop = T.Normalize(mean_, std_)(tensor_crop)
                 normalized_tensor_crop = normalized_tensor_crop.to(device)
@@ -439,7 +445,7 @@ def extract_augmented_crops_hybrid(root_dir, xai_exp_dir, dataset, c, c_to_idx, 
     
     return results
         
-def extract_augmented_crops(mode, root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, xai_and_random_augmentations, xai_process_hp, mean_, std_, pca, model, device):
+def extract_augmented_crops(mode, root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, xai_and_random_augmentations, xai_process_hp, mean_, std_, pca, model, model_type, device):
     os.makedirs(f"{root_dir}/crops_for_augmentation/{c}", exist_ok=True)
     xai_augmentations, random_augmentations = xai_and_random_augmentations
     crop_size, overlap, patch_width, patch_height = xai_process_hp
@@ -447,10 +453,10 @@ def extract_augmented_crops(mode, root_dir, xai_exp_dir, dataset, c, c_to_idx, m
     if xai_augmentations > 0:
         print(f"Extracting {xai_augmentations} XAI-Augmentation Crops for class {c}")
         results = None
-        if mode == "pi": results = extract_augmented_crops_protect_inform(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, overlap, patch_width, patch_height, mean_, std_, pca, model, device)
+        if mode == "pi": results = extract_augmented_crops_protect_inform(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, overlap, patch_width, patch_height, mean_, std_, pca, model, model_type, device)
         elif mode == "lr": results = extract_augmented_crops_lime_reds(root_dir, xai_exp_dir, dataset, c, crop_size, overlap, patch_width, patch_height)
-        elif mode == "wo": results = extract_augmented_crops_world_opening(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, overlap, patch_width, patch_height, mean_, std_, pca, model, device)
-        elif mode == "hybrid": results = extract_augmented_crops_hybrid(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, overlap, patch_width, patch_height, mean_, std_, pca, model, device)
+        elif mode == "wo": results = extract_augmented_crops_world_opening(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, overlap, patch_width, patch_height, mean_, std_, pca, model, model_type, device)
+        elif mode == "hybrid": results = extract_augmented_crops_hybrid(root_dir, xai_exp_dir, dataset, c, c_to_idx, mean_vectors, crop_size, overlap, patch_width, patch_height, mean_, std_, pca, model, model_type, device)
     
         results = sorted(results, key=lambda x: x['utility'], reverse=True)
         with open(f"{root_dir}/crops_for_augmentation/{c}_crops_for_augmentations.json", "w") as f:

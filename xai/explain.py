@@ -93,6 +93,7 @@ if __name__ == '__main__':
         EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["XAI_START_TIMESTAMP"] = start
         EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["PATCH_DIM"] = {"WIDTH": PATCH_WIDTH, "HEIGHT": PATCH_HEIGHT}
         EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["NUM_SAMPLES"] = NUM_SAMPLES
+        EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["KERNEL_WIDTH"] = KERNEL_WIDTH
         EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["OVERLAP"] = OVERLAP
         EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["ITERS"] = ITERS
         EXP_METADATA[f"{XAI_ALGORITHM}_{MODE}_{SURROGATE_MODEL}_METADATA"]["DIR_NAME"] = dir_name
@@ -109,7 +110,6 @@ if __name__ == '__main__':
     if DEVICE == "cuda": logger.info(f"Device: {torch.cuda.get_device_name(0)}")
     else: logger.info("Device: CPU")
 
-    
     model, _ = load_model(MODEL_TYPE, num_classes, "frozen", cp_base, "test", TEST_ID, EXP_METADATA, DEVICE, logger)
     logger.info("Model Loaded!")
     logger.info(f"Classes: {classes}")

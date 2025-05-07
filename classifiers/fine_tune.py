@@ -135,8 +135,8 @@ if __name__ == '__main__':
         torch.backends.cudnn.benchmark = True
         
         mean_, std_ = load_rgb_mean_std(f"{EXP_DIR}", logger)
-        train_ds = Train_DataLoader(directory=f"{EXP_DIR}/train_pre_aug", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_, shuffle=True)
-        val_ds = Test_DataLoader(directory=f"{EXP_DIR}/val", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_)
+        train_ds = Train_DataLoader(model_type=MODEL_TYPE, directory=f"{EXP_DIR}/train_pre_aug", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_, shuffle=True)
+        val_ds = Test_DataLoader(model_type=MODEL_TYPE, directory=f"{EXP_DIR}/val", classes=list(CLASSES_DATA.keys()), batch_size=BATCH_SIZE, img_crop_size=CROP_SIZE, mean=mean_, std=std_)
         _, t_dl = train_ds.load_data()
         _, v_dl = val_ds.load_data()
         

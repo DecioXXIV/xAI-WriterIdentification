@@ -65,8 +65,8 @@ if __name__ == "__main__":
     retrieve_pages(root_dir, DATASET, XAI_EXP_DIR, CLASSES)
     EXP_DIR = f"{CLASSIFIERS_ROOT}/classifier_{MODEL_TYPE}/tests/{TEST_ID}"
     mean_, std_ = load_rgb_mean_std(EXP_DIR, logger)
-    dl_train = Eval_Test_DataLoader(directory=f"{root_dir}/train_instances", classes=CLASSES, batch_size=1, img_crop_size=CROP_SIZE, mult_factor=1, mean=mean_, std=std_)
-    dl_test = Eval_Test_DataLoader(directory=f"{root_dir}/test_instances", classes=CLASSES, batch_size=1, img_crop_size=CROP_SIZE, mult_factor=1, mean=mean_, std=std_)
+    dl_train = Eval_Test_DataLoader(model_type=MODEL_TYPE, directory=f"{root_dir}/train_instances", classes=CLASSES, batch_size=1, img_crop_size=CROP_SIZE, mult_factor=1, mean=mean_, std=std_)
+    dl_test = Eval_Test_DataLoader(model_type=MODEL_TYPE, directory=f"{root_dir}/test_instances", classes=CLASSES, batch_size=1, img_crop_size=CROP_SIZE, mult_factor=1, mean=mean_, std=std_)
 
     print(f"*** BEGINNING OF AUGMENTATION PROCESS: MODE '{CROP_EVAL_MODE}', KEEP_BALANCED '{KEEP_BALANCED}' ***")
     
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     xai_process_hp = [CROP_SIZE, OVERLAP, P_WIDTH, P_HEIGHT]
     for c in CLASSES:
         xai_and_random_augmentations = augmentations[c_to_idx[str(c)]]
-        extract_augmented_crops(CROP_EVAL_MODE, root_dir, XAI_EXP_DIR, DATASET, c, c_to_idx, mean_class_vectors, xai_and_random_augmentations, xai_process_hp, mean_, std_, pca, model, DEVICE)
+        extract_augmented_crops(CROP_EVAL_MODE, root_dir, XAI_EXP_DIR, DATASET, c, c_to_idx, mean_class_vectors, xai_and_random_augmentations, xai_process_hp, mean_, std_, pca, model, MODEL_TYPE, DEVICE)
         
     xai_aug_metadata_entry = f"{CROP_EVAL_MODE}_BALANCED" if KEEP_BALANCED else f"{CROP_EVAL_MODE}"
     if "XAI_AUGMENTATION" not in EXP_METADATA: EXP_METADATA["XAI_AUGMENTATION"] = dict()

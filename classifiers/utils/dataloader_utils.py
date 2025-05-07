@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 from torchvision.transforms import v2
 
+from utils import get_model_final_crop_size
+
 ### ############## ###
 ### DATASETS STATS ###
 ### ############## ###
@@ -150,7 +152,8 @@ def all_crops(img, crop_size, mult_factor):
 ### DATALOADERS ###
 ### ########### ###
 class Base_DataLoader():
-    def __init__(self, directory, classes, batch_size, img_crop_size, mean=[0, 0, 0], std=[1, 1, 1]):
+    def __init__(self, model_type, directory, classes, batch_size, img_crop_size, mean=[0, 0, 0], std=[1, 1, 1]):
+        self.model_type = model_type
         self.directory = directory
         self.classes = classes
         self.batch_size = batch_size
@@ -171,12 +174,13 @@ class Base_DataLoader():
         return ds
     
     def compose_transform(self):
-        transforms = T.Compose([T.ToTensor(), T.Normalize(self.mean, self.std)])
+        model_final_crop_size = get_model_final_crop_size(self.model_type)
+        transforms = T.Compose([T.Resize((model_final_crop_size, model_final_crop_size)), T.ToTensor(), T.Normalize(self.mean, self.std)])
         return transforms
 
 class Train_DataLoader(Base_DataLoader):
-    def __init__(self, directory, classes, batch_size, img_crop_size, weighted_sampling=True, mean=[0, 0, 0], std=[1, 1, 1], shuffle=True):
-        super().__init__(directory, classes, batch_size, img_crop_size, mean, std)
+    def __init__(self, model_type, directory, classes, batch_size, img_crop_size, weighted_sampling=True, mean=[0, 0, 0], std=[1, 1, 1], shuffle=True):
+        super().__init__(model_type, directory, classes, batch_size, img_crop_size, mean, std)
         self.weighted_sampling = weighted_sampling
         self.shuffle = shuffle
         
@@ -211,8 +215,11 @@ class Train_DataLoader(Base_DataLoader):
         invert_p = 0.05
         gaussian_noise = {'mean': 0., 'std': 0.004}
         gn_p = 0.0
+        
+        model_final_crop_size = get_model_final_crop_size(self.model_type)
       
         transforms = T.Compose([
+            T.Resize((model_final_crop_size, model_final_crop_size)),
             T.ColorJitter(**cjitter),
             T.RandomAffine(**randaffine),
             T.RandomPerspective(**randpersp),
@@ -228,8 +235,8 @@ class Train_DataLoader(Base_DataLoader):
         return transforms
 
 class Test_DataLoader(Base_DataLoader):
-    def __init__(self, directory, classes, batch_size, img_crop_size, mean=[0, 0, 0], std=[1, 1, 1]):
-        super().__init__(directory, classes, batch_size, img_crop_size, mean, std)
+    def __init__(self, model_type, directory, classes, batch_size, img_crop_size, mean=[0, 0, 0], std=[1, 1, 1]):
+        super().__init__(model_type, directory, classes, batch_size, img_crop_size, mean, std)
     
     def load_data(self):
         num_workers = max(1, int(os.cpu_count()/2))
@@ -239,21 +246,23 @@ class Test_DataLoader(Base_DataLoader):
         return dataset, loader
 
 class Eval_Test_DataLoader(Test_DataLoader):
-    def __init__(self, directory, classes, batch_size, img_crop_size, mult_factor=2, mean=[0, 0, 0], std=[1, 1, 1]):
-        super().__init__(directory, classes, batch_size, img_crop_size, mean, std)
+    def __init__(self, model_type, directory, classes, batch_size, img_crop_size, mult_factor=2, mean=[0, 0, 0], std=[1, 1, 1]):
+        super().__init__(model_type, directory, classes, batch_size, img_crop_size, mean, std)
         self.mult_factor = mult_factor
     
     def compose_transform(self):
+        model_final_crop_size = get_model_final_crop_size(self.model_type)
         transforms = T.Compose([
             AllCrops(crop_size = self.img_crop_size, mult_factor=self.mult_factor),
-            T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(crop)) for crop in crops]))
+            # T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(crop)) for crop in crops]))
+            T.Lambda(lambda crops: torch.stack([T.Normalize(self.mean, self.std)(T.ToTensor()(T.Resize((model_final_crop_size, model_final_crop_size))(crop))) for crop in crops]))
         ])
             
         return transforms
 
 class Dummy_Test_DataLoader(Base_DataLoader):
-    def __init__(self, directory, classes, batch_size, img_crop_size, mean=[0, 0, 0], std=[1, 1, 1]):
-        super().__init__(directory, classes, batch_size, img_crop_size, mean, std)
+    def __init__(self, model_type, directory, classes, batch_size, img_crop_size, mean=[0, 0, 0], std=[1, 1, 1]):
+        super().__init__(model_type, directory, classes, batch_size, img_crop_size, mean, std)
     
     def load_data(self):
         num_workers = max(1, int(os.cpu_count()/2))
@@ -263,5 +272,6 @@ class Dummy_Test_DataLoader(Base_DataLoader):
         return dataset, loader
 
     def compose_transform(self):
-        transforms = T.Compose([T.ToTensor(), T.Normalize(self.mean, self.std)])
+        model_final_crop_size = get_model_final_crop_size(self.model_type)
+        transforms = T.Compose([T.Resize((model_final_crop_size, model_final_crop_size)), T.ToTensor(), T.Normalize(self.mean, self.std)])
         return transforms

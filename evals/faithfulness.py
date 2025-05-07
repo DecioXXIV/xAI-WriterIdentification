@@ -88,7 +88,7 @@ if __name__ == '__main__':
         
         else: mask_test_instances(instances, paths, TEST_ID, EXP_DIR, mask_rate, MASK_MODE, PATCH_WIDTH, PATCH_HEIGHT, XAI_ALGORITHM, XAI_MODE, SURROGATE_MODEL, EXP_METADATA, logger)
         
-        mask_rate_performances = test_model(model, DEVICE, CLASSES, EXP_METADATA, mask_rate, MASK_MODE, exp_eval_directory, logger)
+        mask_rate_performances = test_model(model, MODEL_TYPE, DEVICE, CLASSES, EXP_METADATA, mask_rate, MASK_MODE, exp_eval_directory, logger)
         logger.info(f"TEST ACCURACY FOR M_RATE {mask_rate}: {mask_rate_performances}\n")
         if not KEEP_TEST_SETS:
             os.system(f"rm -rf {exp_eval_directory}/test_set_masked_{MASK_MODE}_{mask_rate}")
