@@ -1,4 +1,5 @@
 import torch, os, json, pickle
+import numpy as np
 from datetime import datetime
 from argparse import ArgumentParser
 from PIL import Image
@@ -166,17 +167,17 @@ if __name__ == '__main__':
 
             mask_dir = f"{XAI_ROOT}/masks/{DATASET}_mask_{PATCH_WIDTH}x{PATCH_HEIGHT}_cs{CROP_SIZE}_overlap{OVERLAP}"
             os.makedirs(mask_dir, exist_ok=True)
-            if not os.path.exists(f"{mask_dir}/mask.png"):
-                mask_img, mask_rows, mask_cols = generate_mask(padded_img, DATASET, PATCH_WIDTH, PATCH_HEIGHT, CROP_SIZE, OVERLAP)
+            if not os.path.exists(f"{mask_dir}/mask.npy"):
+                mask_array, mask_rows, mask_cols = generate_mask(padded_img, DATASET, PATCH_WIDTH, PATCH_HEIGHT, CROP_SIZE, OVERLAP)
             else: 
-                mask_img = Image.open(f"{mask_dir}/mask.png")
+                mask_array = np.load(f"{mask_dir}/mask.npy")
                 with open(f"{mask_dir}/dimensions.json", "r") as f: dimensions = json.load(f)
                 mask_rows, mask_cols = dimensions["mask_rows"], dimensions["mask_cols"]
 
             instance_scores = None
             mean_masked_patches = None
             if f"{instance_name}_scores.pkl" not in os.listdir(f"{output_dir}"):
-                instance_scores, all_maskings, total_samples = explain_instance(explainer, padded_img, img_rows, img_cols, instance_name, label, mask_img, mask_rows, mask_cols, output_dir, CROP_SIZE, OVERLAP, ITERS)
+                instance_scores, all_maskings, total_samples = explain_instance(explainer, padded_img, img_rows, img_cols, instance_name, label, mask_array, mask_rows, mask_cols, output_dir, CROP_SIZE, OVERLAP, ITERS)
                 mean_masked_patches = float(all_maskings.sum() / len(all_maskings))
                 if SAVE_SAMPLES:
                     with open(f"{output_dir}/{instance_name}_samples.pkl", "wb") as f: pickle.dump(total_samples, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -184,7 +185,7 @@ if __name__ == '__main__':
             else: 
                 with open(f"{output_dir}/{instance_name}_scores.json", "r") as f: instance_scores = json.load(f)
             
-            visualize_exp_outcome(instance_scores, mask_img, instance_name, output_dir)
+            visualize_exp_outcome(instance_scores, mask_array, instance_name, output_dir)
             
             XAI_METADATA["INSTANCES"][f"{instance_name}"] = dict()
             XAI_METADATA["INSTANCES"][f"{instance_name}"]["label"] = label

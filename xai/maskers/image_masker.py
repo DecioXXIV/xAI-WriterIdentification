@@ -61,11 +61,9 @@ class ImageMasker:
         crop_size = self.exp_metadata["FINE_TUNING_HP"]["crop_size"]
         overlap = self.exp_metadata[f"{self.xai_algorithm}_{self.xai_mode}_{self.surrogate_model}_METADATA"]["OVERLAP"]
 
-        mask = Image.open(f"{XAI_ROOT}/masks/{self.dataset}_mask_{self.patch_width}x{self.patch_height}_cs{crop_size}_overlap{overlap}/mask.png")
-        mask_width, mask_height = mask.size
-        mask = mask.crop((padding_dict["left"], padding_dict["top"], mask_width-padding_dict["right"], mask_height-padding_dict["bottom"]))
-        mask_array = np.array(mask, dtype=np.float64)
-        mask_array /= 100
+        mask_array = np.load(f"{XAI_ROOT}/masks/{self.dataset}_mask_{self.patch_width}x{self.patch_height}_cs{crop_size}_overlap{overlap}/mask.npy")
+        mask_height, mask_width = mask_array.shape
+        mask_array[padding_dict["top"]:mask_height-padding_dict["bottom"], padding_dict["left"]:mask_width-padding_dict["right"]]
         
         with open(f"{XAI_ROOT}/explanations/patches_{self.patch_width}x{self.patch_height}_removal/{self.exp_dir}/{instance_name}/{instance_name}_scores.json", "r") as f: 
             scores = json.load(f)
@@ -74,8 +72,8 @@ class ImageMasker:
 
         for idx, score in scores.items():
             instance_patch = f"{instance_name}_patch{idx}"
-                
-            positions = np.argwhere(mask_array == float(idx))
+            
+            positions = np.argwhere(mask_array == idx)
             if positions.size > 0:
                 top_b_patch, left_b_patch = positions.min(axis=0)
                 bottom_b_patch, right_b_patch = positions.max(axis=0)

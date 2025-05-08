@@ -63,19 +63,34 @@ def generate_mask(padded_img, dataset, patch_width, patch_height, crop_size, ove
     total_patches = num_cols*num_rows
 
     idx = np.arange(total_patches, dtype=np.uint16)
-    np.random.shuffle(idx)
     mask_array = idx.reshape((num_rows, num_cols)).repeat(patch_height, axis=0).repeat(patch_width, axis=1)
-
-    mask_array_to_img = mask_array.copy()
-    mask_img = Image.fromarray(mask_array_to_img*100)
-    mask_img = v2.CenterCrop((img_h, img_w))(mask_img)
-
+    
+    mask_array_h, mask_array_w = mask_array.shape
+    w_diff = mask_array_w - img_w
+    h_diff = mask_array_h - img_h
+    
+    mask_array_top, mask_array_bottom, mask_array_left, mask_array_right = 0, 0, 0, 0
+    if h_diff % 2 == 0: 
+        mask_array_top = int(h_diff/2)
+        mask_array_bottom = mask_array_h - int(h_diff/2)
+    else:
+        mask_array_top = int((h_diff-1)/2)
+        mask_array_bottom = mask_array_h - int((h_diff+1)/2)
+    
+    if w_diff % 2 == 0: 
+        mask_array_left = int(w_diff/2)
+        mask_array_right = mask_array_w - int(w_diff/2)
+    else:
+        mask_array_left = int((w_diff-1)/2)
+        mask_array_right = mask_array_w - int((w_diff+1)/2)
+    
+    mask_array = mask_array[mask_array_top:mask_array_bottom, mask_array_left:mask_array_right] 
     output_dir = f"{XAI_ROOT}/masks/{dataset}_mask_{patch_width}x{patch_height}_cs{crop_size}_overlap{overlap}"
-    mask_img.save(f"{output_dir}/mask.png")
+    np.save(f"{output_dir}/mask.npy", mask_array)
     dimensions = {"mask_rows": num_rows, "mask_cols": num_cols}
     with open(f"{output_dir}/dimensions.json", "w") as f: json.dump(dimensions, f, indent=4)
 
-    return mask_img, num_rows, num_cols
+    return mask_array, num_rows, num_cols
 
 ### ##################### ###
 ### POPULATION STATISTICS ###

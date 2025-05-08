@@ -72,7 +72,7 @@ def setup_explainer(xai_algorithm, surrogate_model, model_type, model, num_sampl
     elif xai_algorithm == "GLimeBinomial":
         return GLimeBinomialExplainer(model_type, model, surrogate_model, mean, std, num_samples, batch_size, kernel_width)
 
-def explain_instance(explainer, img, img_rows, img_cols, instance_name, label, mask, mask_rows, mask_cols, output_dir, crop_size, overlap, iters):
+def explain_instance(explainer, img, img_rows, img_cols, instance_name, label, mask_array, mask_rows, mask_cols, output_dir, crop_size, overlap, iters):
     scores = dict()
     total_masked_patches = list()
     total_samples = dict()
@@ -84,9 +84,9 @@ def explain_instance(explainer, img, img_rows, img_cols, instance_name, label, m
         for r in range(0, img_rows):
             for c in range(0, img_cols):
                 coordinates = grid_dict[f"{r}_{c}"]
-                crop_img, crop_mask = img.crop(coordinates), mask.crop(coordinates)
-                crop_mask_array = np.array(crop_mask)
-                segments = np.array(crop_mask_array/100, dtype=np.uint16)
+                crop_img = img.crop(coordinates)
+                left, top, right, bottom = coordinates
+                segments = mask_array[top:bottom, left:right]
                 
                 crop_attr = dict()
 
@@ -112,9 +112,9 @@ def explain_instance(explainer, img, img_rows, img_cols, instance_name, label, m
 
     return final_scores, np.array(total_masked_patches), total_samples
 
-def visualize_exp_outcome(scores, mask, instance_name, output_dir,):
-    mask_array = np.array(mask)/100
-    for k in scores.keys(): mask_array[mask_array == float(k)] = scores[k]
+def visualize_exp_outcome(scores, mask_array, instance_name, output_dir,):
+    map_to_plot = np.array(mask_array, dtype=np.float32)
+    for k in scores.keys(): map_to_plot[mask_array == int(k)] = scores[k]
 
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.axis("off")
@@ -122,7 +122,7 @@ def visualize_exp_outcome(scores, mask, instance_name, output_dir,):
     cmap.set_bad(color='black')
 
     vmin, vmax = -1, 1
-    heat_map = ax.imshow(mask_array, cmap=cmap, vmin=vmin, vmax=vmax)
+    heat_map = ax.imshow(map_to_plot, cmap=cmap, vmin=vmin, vmax=vmax)
 
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("bottom", size="5%", pad=0.1)
