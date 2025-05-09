@@ -3,6 +3,7 @@ import multiprocessing as mp
 import numpy as np
 import pandas as pd
 from itertools import combinations
+from scipy.stats import kendalltau
 
 DATASETS_ROOT = "./datasets"
 XAI_ROOT = "./xai"
@@ -63,47 +64,28 @@ def get_mode_pairs(modes_mapping):
     return list(combinations(modes, 2))
 
 def produce_instances_abs_differences_report_parallel(test_id, instances, modes_mapping, mode_pairs, stability_eval_name):
-    args = [(test_id, inst, modes_mapping, mode_pairs, stability_eval_name) for inst in instances]
-    with mp.Pool(mp.cpu_count()) as pool:
-        pool.map(process_instance_abs_differences, args)
+    differences_report = pd.DataFrame(columns=["Instance"])
+    differences_report.set_index("Instance", inplace=True)
+    tasks = [(test_id, inst, pair, modes_mapping, stability_eval_name) for pair in mode_pairs for inst in instances]
+    
+    with mp.Pool(mp.cpu_count()) as pool: results = pool.map(process_instance_abs_differences, tasks)
+
+    for inst, col_name, value in results: differences_report.at[inst, col_name] = value
+
+    differences_report.to_csv(f"{EVAL_ROOT}/stability/{test_id}/{stability_eval_name}/euclidean_distances.csv", index=True, header=True)
 
 def process_instance_abs_differences(args):
-    test_id, inst, modes_mapping, mode_pairs, stability_eval_name = args
+    test_id, inst, pair, modes_mapping, stability_eval_name = args
+    mode1, mode2 = modes_mapping[pair[0]], modes_mapping[pair[1]]
+    file_path = f"{EVAL_ROOT}/stability/{test_id}/{stability_eval_name}/instances/{inst}/{inst}_all_mode_scores.csv"
     
-    if not os.path.exists(f"{EVAL_ROOT}/stability/{test_id}/{stability_eval_name}/instances/{inst}/{inst}_abs_differences.csv"):
-        all_mode_scores = pd.read_csv(f"{EVAL_ROOT}/stability/{test_id}/{stability_eval_name}/instances/{inst}/{inst}_all_mode_scores.csv", index_col=0, header=0)
-        abs_differences = pd.DataFrame()
-        abs_differences["patches"] = all_mode_scores.index
-        abs_differences.set_index("patches", inplace=True)
-        
-        for pair in mode_pairs:
-            mode1, mode2 = modes_mapping[pair[0]], modes_mapping[pair[1]]
-            for patch in abs_differences.index:
-                score1, score2 = all_mode_scores.at[patch, pair[0]], all_mode_scores.at[patch, pair[1]]
-                abs_differences.at[patch, f"{mode1}X{mode2}"] = np.abs(score1 - score2)
-                
-        for patch in abs_differences.index:
-            mean, std = np.mean(abs_differences.loc[patch]), np.std(abs_differences.loc[patch])
-            abs_differences.at[patch, "mean"] = mean
-            abs_differences.at[patch, "std"] = std
-        
-        abs_differences.to_csv(f"{EVAL_ROOT}/stability/{test_id}/{stability_eval_name}/instances/{inst}/{inst}_abs_differences.csv", index=True, header=True)
+    all_mode_scores = pd.read_csv(file_path, index_col=0, header=0)
+    mode1_scores = np.array(all_mode_scores[pair[0]].values)
+    mode2_scores = np.array(all_mode_scores[pair[1]].values)
+    distance = np.linalg.norm(np.abs(mode1_scores - mode2_scores))
 
-def compute_global_abs_differences_stats(test_id, instances, stability_eval_name):
-    global_statistics = pd.DataFrame(columns=["Instance"])
-    global_statistics.set_index("Instance", inplace=True)
-    
-    for instance in instances:
-        abs_differences = pd.read_csv(f"{EVAL_ROOT}/stability/{test_id}/{stability_eval_name}/instances/{instance}/{instance}_abs_differences.csv", index_col=0, header=0)
-        global_statistics.at[instance, "Mode Pairs Evaluated"] = len(abs_differences.columns) - 2 # Exclude mean and std columns
-        global_statistics.at[instance, "Global_Mean_Abs_Difference"] = np.mean(abs_differences["mean"])
-        global_statistics.at[instance, "Global_Std_Abs_Difference"] = np.std(abs_differences["mean"])
-        global_statistics.at[instance, "Global_Median_Abs_Difference"] = np.median(abs_differences["mean"])
-        global_statistics.at[instance, "Global_Max_Abs_Difference"] = np.max(abs_differences["mean"])
-        global_statistics.at[instance, "Global_Min_Abs_Difference"] = np.min(abs_differences["mean"])
-    
-    global_statistics.to_csv(f"{EVAL_ROOT}/stability/{test_id}/{stability_eval_name}/abs_differences_global_statistics.csv", index=True, header=True)
-    
+    return (inst, f"{mode1}X{mode2}", distance)
+
 def produce_instances_jaccard_report_parallel(test_id, instances, modes_mapping, mode_pairs, stability_eval_name, logger):
     rules = ["best", "worst"]
     ratios = [0.01, 0.05, 0.1, 0.25]
@@ -118,14 +100,13 @@ def produce_instances_jaccard_report_parallel(test_id, instances, modes_mapping,
                     results = pool.map(process_instance_jaccard, args)
                 
                 jaccard_report = pd.DataFrame(columns=["Instance"])
-                jaccard_report["Instance"] = instances
                 jaccard_report.set_index("Instance", inplace=True)
                 for inst, values in results:
                     for k, v in values.items():
                         jaccard_report.at[inst, k] = v
             
-            jaccard_report.to_csv(output_path, index=True, header=True)
-            logger.info(f"Produced Jaccard Similarity Report: {rule}_{ratio}")
+                jaccard_report.to_csv(output_path, index=True, header=True)
+                logger.info(f"Produced Jaccard Similarity Report: {rule}_{ratio}")
             
 def process_instance_jaccard(args):
     test_id, inst, modes_mapping, mode_pairs, rule, ratio, stability_eval_name = args
@@ -157,3 +138,53 @@ def process_instance_jaccard(args):
         row[f"{mode1}X{mode2}"] = jaccard
  
     return inst, row
+
+def produce_instances_kendalltau_report_parallel(test_id, instances, modes_mapping, mode_pairs, stability_eval_name, logger):
+    ratios = [0.01, 0.05, 0.1, 0.25]
+
+    for ratio in ratios:
+        output_path = f"{EVAL_ROOT}/stability/{test_id}/{stability_eval_name}/kendalltau_report_best_{ratio}.csv"
+        if not os.path.exists(output_path):
+            args = [(test_id, inst, modes_mapping, mode_pairs, ratio, stability_eval_name) for inst in instances]
+
+            with mp.Pool(mp.cpu_count()) as pool: results = pool.map(process_instance_kendalltau, args)
+
+            kendalltau_report = pd.DataFrame(columns=["Instance"])
+            kendalltau_report.set_index("Instance", inplace=True)
+            for inst, values in results:
+                for k, v in values.items():
+                    kendalltau_report.at[inst, k] = v
+                
+            kendalltau_report.to_csv(output_path, index=True, header=True)
+            logger.info(f"Produced Kendall-Tau Similarity Report: best_{ratio}")
+
+def process_instance_kendalltau(args):
+    test_id, inst, modes_mapping, mode_pairs, ratio, stability_eval_name = args
+    
+    all_mode_scores_path = f"{EVAL_ROOT}/stability/{test_id}/{stability_eval_name}/instances/{inst}/{inst}_all_mode_scores.csv"
+    all_mode_scores = pd.read_csv(all_mode_scores_path, index_col=0)
+    total_patches = len(all_mode_scores.index)
+    num_patches = int(total_patches * ratio)
+
+    row = {}
+    for pair in mode_pairs:
+        mode1, mode2 = modes_mapping[pair[0]], modes_mapping[pair[1]]
+        mode1_scores = all_mode_scores[pair[0]]
+        mode2_scores = all_mode_scores[pair[1]]
+        
+        mode1_keys_toreport = mode1_scores.head(num_patches).index.tolist()
+        mode2_keys_toreport = mode2_scores.head(num_patches).index.tolist()
+        all_keys_toreport = list(set(mode1_keys_toreport) | set(mode2_keys_toreport))
+
+        mode1_filtered_scores, mode2_filtered_scores = dict(), dict()
+        for k in all_keys_toreport:
+            mode1_filtered_scores[k] = mode1_scores.loc[k]
+            mode2_filtered_scores[k] = mode2_scores.loc[k]
+
+        mode1_filtered_ordered_keys = list(dict(sorted(mode1_filtered_scores.items(), key=lambda item: item[1], reverse=True)).keys())
+        mode2_filtered_ordered_keys = list(dict(sorted(mode2_filtered_scores.items(), key=lambda item: item[1], reverse=True)).keys())
+
+        kt = kendalltau(mode1_filtered_ordered_keys, mode2_filtered_ordered_keys)[0]
+        row[f"{mode1}X{mode2}"] = float(kt)
+ 
+    return inst, row  
