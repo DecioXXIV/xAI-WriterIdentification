@@ -63,7 +63,9 @@ def get_train_instance_patterns():
         "VatLat653": lambda f: 'a' in f,
         "VatLat5951b": lambda f: 'a' in f,
         "VatLat4221": lambda f: 'a' in f,
-        "KolnWomen": lambda f: 'a' in f
+        "KolnWomen": lambda f: 'a' in f,
+        "KolnWomenFullBinV2": lambda f: 'a' in f,
+        "KolnWomenRedBinV2": lambda f: 'a' in f
     }
     
     return train_instance_patterns
@@ -75,7 +77,9 @@ def get_test_instance_patterns():
         "VatLat653": lambda f: 't' in f,
         "VatLat5951b": lambda f: 't' in f,
         "VatLat4221": lambda f: 't' in f,
-        "KolnWomen": lambda f: 't' in f
+        "KolnWomen": lambda f: 't' in f,
+        "KolnWomenFullBinV2": lambda f: 't' in f,
+        "KolnWomenRedBinV2": lambda f: 't' in f
     }
     
     return test_instance_patterns
@@ -89,6 +93,8 @@ def get_vert_hor_cuts(dataset):
     elif dataset == "VatLat5951b": vert_cuts, hor_cuts = 1, 1
     elif dataset == "VatLat4221": vert_cuts, hor_cuts = 1, 1
     elif dataset == "KolnWomen": vert_cuts, hor_cuts = 1, 1
+    elif dataset == "KolnWomenFullBinV2": vert_cuts, hor_cuts = 1, 1
+    elif dataset == "KolnWomenRedBinV2": vert_cuts, hor_cuts = 1, 1
     
     return vert_cuts, hor_cuts
 
@@ -101,6 +107,8 @@ def get_page_dimensions(dataset):
     elif dataset == "VatLat5951b": final_width, final_height = 682, 1043
     elif dataset == "VatLat4221": final_width, final_height = 1270, 2020
     elif dataset == "KolnWomen": final_width, final_height = 1664, 2023
+    elif dataset == "KolnWomenFullBinV2": final_width, final_height = 1664, 2023
+    elif dataset == "KolnWomenRedBinV2": final_width, final_height = 1664, 2023
     
     return final_width, final_height
 
