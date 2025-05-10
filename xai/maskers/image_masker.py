@@ -73,7 +73,7 @@ class ImageMasker:
         for idx, score in scores.items():
             instance_patch = f"{instance_name}_patch{idx}"
             
-            positions = np.argwhere(mask_array == idx)
+            positions = np.argwhere(mask_array == int(idx))
             if positions.size > 0:
                 top_b_patch, left_b_patch = positions.min(axis=0)
                 bottom_b_patch, right_b_patch = positions.max(axis=0)
