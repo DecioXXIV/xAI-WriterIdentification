@@ -5,7 +5,7 @@ from utils import load_metadata, get_logger
 
 from xai import EXPLAINERS, SURROGATES
 
-from evals.utils.stability_utils import get_instances, get_faith_evaluated_xai_modes, collect_all_instances_attr_scores_per_patch_parallel, get_mode_pairs, produce_instances_abs_differences_report_parallel, compute_global_abs_differences_stats, produce_instances_jaccard_report_parallel
+from evals.utils.stability_utils import get_instances, get_faith_evaluated_xai_modes, collect_all_instances_attr_scores_per_patch_parallel, get_mode_pairs, produce_instances_abs_differences_report_parallel, produce_instances_jaccard_report_parallel, produce_instances_kendalltau_report_parallel
 
 LOG_ROOT = "./log"
 DATASETS_ROOT = "./datasets"
@@ -62,8 +62,12 @@ if __name__ == '__main__':
     produce_instances_abs_differences_report_parallel(TEST_ID, instances, modes_mapping, mode_pairs, STABILITY_EVAL_NAME)
     logger.info("Produced absolute differences reports for all instances")
     
-    compute_global_abs_differences_stats(TEST_ID, instances, STABILITY_EVAL_NAME)
+    # compute_global_abs_differences_stats(TEST_ID, instances, STABILITY_EVAL_NAME)
     
     logger.info("Producing Reports on Jaccard Similarity for all instances...")
     produce_instances_jaccard_report_parallel(TEST_ID, instances, modes_mapping, mode_pairs, STABILITY_EVAL_NAME, logger)
+    
+    logger.info("Producing Reports on Kendall-Tau Correlation for all instances...")
+    produce_instances_kendalltau_report_parallel(TEST_ID, instances, modes_mapping, mode_pairs, STABILITY_EVAL_NAME, logger)
+    
     logger.info(f"*** END OF STABILITY EVALUATION FOR ['{TEST_ID}', '{XAI_ALGORITHM}', '{SURROGATE_MODEL}'] ***")
