@@ -2,8 +2,9 @@ from argparse import ArgumentParser
 
 from utils import load_metadata, get_logger
 
-from xai import EXPLAINERS, SURROGATES, MASK_MODES
-from xai.maskers.image_masker import SaliencyMasker, RandomMasker
+from xai import EXPLAINERS, SURROGATES, MASK_RULES, MASK_MODES
+from xai.maskers.area_image_masker import AreaSaliencyMasker, AreaRandomMasker
+from xai.maskers.patch_number_image_masker import PatchNumberSaliencyMasker, PatchNumberRandomMasker
 from xai.utils.mask_utils import setup_masking_process
 
 LOG_ROOT = "./log"
@@ -16,6 +17,7 @@ def get_args():
     parser.add_argument("-surrogate_model", type=str, required=True, choices=SURROGATES)
     parser.add_argument("-instances", type=str, required=True, choices=["train", "test"])
     parser.add_argument("-mask_rate", type=float, required=True)
+    parser.add_argument("-mask_rule", type=str, required=True, choices=MASK_RULES)
     parser.add_argument("-mask_mode", type=str, required=True, choices=MASK_MODES)
 
     return parser.parse_args()
@@ -40,14 +42,15 @@ if __name__ == '__main__':
     SURROGATE_MODEL = args.surrogate_model
     INSTANCE_SET = args.instances
     MASK_RATE = args.mask_rate
+    MASK_RULE = args.mask_rule
     MASK_MODE = args.mask_mode
         
     if f"{XAI_ALGORITHM}_{XAI_MODE}_{SURROGATE_MODEL}_METADATA" not in EXP_METADATA:
         logger.warning(f"*** IN RELATION TO THE '{TEST_ID}' EXPERIMENT, THE XAI ALGORITHM '{XAI_ALGORITHM}' WITH MODE '{XAI_MODE}' HAS NOT BEEN EMPLOYED YET! ***\n")
         exit(1)
     
-    if f"MASK_PROCESS_{INSTANCE_SET}_{MASK_MODE}_{MASK_RATE}_{XAI_ALGORITHM}_{XAI_MODE}_{SURROGATE_MODEL}_END_TIMESTAMP" in EXP_METADATA:
-        logger.warning(f"*** IN RELATION TO ['{TEST_ID}' EXPERIMENT, '{XAI_ALGORITHM}-{XAI_MODE}-{SURROGATE_MODEL}' XAI ALGORITHM, '{MASK_MODE}' MODE, '{MASK_RATE}' MASK RATE], THE MASKING PROCESS HAS ALREADY BEEN PERFORMED! ***\n")
+    if f"MASK_PROCESS_{INSTANCE_SET}_{MASK_MODE}_{MASK_RULE}_{MASK_RATE}_{XAI_ALGORITHM}_{XAI_MODE}_{SURROGATE_MODEL}_END_TIMESTAMP" in EXP_METADATA:
+        logger.warning(f"*** IN RELATION TO ['{TEST_ID}' EXPERIMENT, '{XAI_ALGORITHM}-{XAI_MODE}-{SURROGATE_MODEL}' XAI ALGORITHM, '{MASK_MODE}' MODE, '{MASK_RULE}' RULE, {MASK_RATE}' MASK RATE], THE MASKING PROCESS HAS ALREADY BEEN PERFORMED! ***\n")
         exit(1)
     
     DATASET = EXP_METADATA["DATASET"]
@@ -59,13 +62,25 @@ if __name__ == '__main__':
     instances, paths = setup_masking_process(DATASET, CLASSES, INSTANCE_SET)
     
     masker = None
-    if MASK_MODE == "saliency":
-        masker = SaliencyMasker(test_id=TEST_ID, inst_set=INSTANCE_SET, instances=instances, paths=paths, 
-            exp_dir=EXP_DIR, mask_rate=MASK_RATE, mask_mode=MASK_MODE, patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
+    
+    if MASK_MODE == "area":
+        if MASK_MODE == "saliency":
+            masker = AreaSaliencyMasker(test_id=TEST_ID, inst_set=INSTANCE_SET, instances=instances, paths=paths, 
+            exp_dir=EXP_DIR, mask_rate=MASK_RATE, mask_rule=MASK_RULE, patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
             xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, surrogate_model=SURROGATE_MODEL, logger=logger, save_patches=True, verbose=True)
-    elif MASK_MODE == "random":
-        masker = RandomMasker(test_id=TEST_ID, inst_set=INSTANCE_SET, instances=instances, paths=paths, 
-            exp_dir=EXP_DIR, mask_rate=MASK_RATE, mask_mode=MASK_MODE, patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
+        elif MASK_MODE == "random":
+            masker = AreaRandomMasker(test_id=TEST_ID, inst_set=INSTANCE_SET, instances=instances, paths=paths, 
+            exp_dir=EXP_DIR, mask_rate=MASK_RATE, mask_rule=MASK_RULE, patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
+            xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, surrogate_model=SURROGATE_MODEL, logger=logger, save_patches=True, verbose=True)
+    
+    elif MASK_MODE == "patch_number":
+        if MASK_MODE == "saliency":
+            masker = PatchNumberSaliencyMasker(test_id=TEST_ID, inst_set=INSTANCE_SET, instances=instances, paths=paths, 
+            exp_dir=EXP_DIR, mask_rate=MASK_RATE, mask_rule=MASK_RULE, patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
+            xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, surrogate_model=SURROGATE_MODEL, logger=logger, save_patches=True, verbose=True)
+        elif MASK_MODE == "random":
+            masker = PatchNumberRandomMasker(test_id=TEST_ID, inst_set=INSTANCE_SET, instances=instances, paths=paths, 
+            exp_dir=EXP_DIR, mask_rate=MASK_RATE, mask_rule=MASK_RULE, patch_width=PATCH_WIDTH, patch_height=PATCH_HEIGHT,
             xai_algorithm=XAI_ALGORITHM, xai_mode=XAI_MODE, surrogate_model=SURROGATE_MODEL, logger=logger, save_patches=True, verbose=True)
     
     masker()

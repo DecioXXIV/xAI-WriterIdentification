@@ -1,5 +1,6 @@
 EXPLAINERS = ["LimeBase", "GLimeBinomial"]
 SURROGATES = ["LinReg", "Ridge", "Lasso", "ElasticNet"]
-MASK_MODES = ["saliency", "random"]
+MASK_RULES = ["saliency", "random"]
+MASK_MODES = ["area", "patch_number"]
 
-__all__ = [EXPLAINERS, SURROGATES]
+__all__ = [EXPLAINERS, SURROGATES, MASK_RULES, MASK_MODES]
