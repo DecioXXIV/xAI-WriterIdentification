@@ -84,18 +84,18 @@ if __name__ == '__main__':
         for i, mask_rate in enumerate(mask_rates):
             logger.info(f"BEGINNING OF ACCURACY COMPUTATION FOR M_RATE: {mask_rate}")
             if mask_rate == 0.0:
-                os.makedirs(f"{exp_eval_directory}/test_set_masked_{MASK_RULE}_{MASK_MODE}_{mask_rate}", exist_ok=True)
+                os.makedirs(f"{exp_eval_directory}/test_set_masked_{MASK_MODE}_{MASK_RULE}_{mask_rate}", exist_ok=True)
                 for inst, src in zip(instances, paths):
                     c = src.split('/')[-2]
-                    os.makedirs(f"{exp_eval_directory}/test_set_masked_{MASK_RULE}_{MASK_MODE}_{mask_rate}/{c}", exist_ok=True)
-                    dest = f"{exp_eval_directory}/test_set_masked_{MASK_RULE}_{MASK_MODE}_{mask_rate}/{c}/{inst}"
+                    os.makedirs(f"{exp_eval_directory}/test_set_masked_{MASK_MODE}_{MASK_RULE}_{mask_rate}/{c}", exist_ok=True)
+                    dest = f"{exp_eval_directory}/test_set_masked_{MASK_MODE}_{MASK_RULE}_{mask_rate}/{c}/{inst}"
                     os.system(f"cp {src} {dest}")
         
             else: mask_test_instances(instances, paths, TEST_ID, EXP_DIR, mask_rate, MASK_RULE, MASK_MODE, PATCH_WIDTH, PATCH_HEIGHT, XAI_ALGORITHM, XAI_MODE, SURROGATE_MODEL, EXP_METADATA, logger)
         
             mask_rate_performances = test_model(model, MODEL_TYPE, DEVICE, CLASSES, EXP_METADATA, mask_rate, MASK_RULE, MASK_MODE, exp_eval_directory, logger)
             logger.info(f"TEST ACCURACY FOR M_RATE {mask_rate}: {mask_rate_performances}\n")
-            if not KEEP_TEST_SETS: os.system(f"rm -rf {exp_eval_directory}/test_set_masked_{MASK_RULE}_{MASK_MODE}_{mask_rate}")
+            if not KEEP_TEST_SETS: os.system(f"rm -rf {exp_eval_directory}/test_set_masked_{MASK_MODE}_{MASK_RULE}_{mask_rate}")
             
             with open(f"{exp_eval_directory}/faithfulness_{MASK_RULE}_{MASK_MODE}_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}.txt", 'a') as f:
                 f.write(f"M_RATE: {mask_rate}; TEST ACCURACY: {mask_rate_performances}\n")
@@ -112,20 +112,20 @@ if __name__ == '__main__':
         for i, mask_rate in enumerate(mask_rates):
             logger.info(f"BEGINNING OF ACCURACY COMPUTATION FOR M_RATE: {mask_rate}")
             if mask_rate == 0.0:
-                os.makedirs(f"{exp_eval_directory}/test_set_masked_{MASK_RULE}_{MASK_MODE}_{mask_rate}", exist_ok=True)
+                os.makedirs(f"{exp_eval_directory}/test_set_masked_{MASK_MODE}_{MASK_RULE}_{mask_rate}", exist_ok=True)
                 for inst, src in zip(instances, paths):
                     c = src.split('/')[-2]
-                    os.makedirs(f"{exp_eval_directory}/test_set_masked_{MASK_RULE}_{MASK_MODE}_{mask_rate}/{c}", exist_ok=True)
-                    dest = f"{exp_eval_directory}/test_set_masked_{MASK_RULE}_{MASK_MODE}_{mask_rate}/{c}/{inst}"
+                    os.makedirs(f"{exp_eval_directory}/test_set_masked_{MASK_MODE}_{MASK_RULE}_{mask_rate}/{c}", exist_ok=True)
+                    dest = f"{exp_eval_directory}/test_set_masked_{MASK_MODE}_{MASK_RULE}_{mask_rate}/{c}/{inst}"
                     os.system(f"cp {src} {dest}")
                     
-                    mask_rate_performances = test_model(model, MODEL_TYPE, DEVICE, CLASSES, EXP_METADATA, mask_rate, MASK_RULE, MASK_MODE, exp_eval_directory, logger)
-                    logger.info(f"TEST ACCURACY FOR M_RATE {mask_rate}: {mask_rate_performances}\n")
-                    for j in range(0, ITERS): performances[0, i] = mask_rate_performances
+                mask_rate_performances = test_model(model, MODEL_TYPE, DEVICE, CLASSES, EXP_METADATA, mask_rate, MASK_RULE, MASK_MODE, exp_eval_directory, logger)
+                logger.info(f"TEST ACCURACY FOR M_RATE {mask_rate}: {mask_rate_performances}\n")
+                for j in range(0, ITERS): performances[0, j] = mask_rate_performances
                     
-                    with open(f"{exp_eval_directory}/faithfulness_{MASK_RULE}_{MASK_MODE}_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}.txt", 'a') as f:
-                        f.write(f"M_RATE: {mask_rate}; TEST ACCURACY: {mask_rate_performances}\n")
-                        f.write("### ------------------ ###\n\n")
+                with open(f"{exp_eval_directory}/faithfulness_{MASK_RULE}_{MASK_MODE}_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}.txt", 'a') as f:
+                    f.write(f"M_RATE: {mask_rate}; TEST ACCURACY: {mask_rate_performances}\n")
+                    f.write("### ------------------ ###\n\n")
                     
             else:
                 for j in range(0, ITERS):
@@ -141,7 +141,7 @@ if __name__ == '__main__':
                     f.write(f"M_RATE: {mask_rate}; MIN TEST ACCURACY: {float(np.min(performances[i]))}\n")
                     f.write("### ------------------ ###\n\n")
             
-            if not KEEP_TEST_SETS: os.system(f"rm -rf {exp_eval_directory}/test_set_masked_{MASK_RULE}_{MASK_MODE}_{mask_rate}")
+            if not KEEP_TEST_SETS: os.system(f"rm -rf {exp_eval_directory}/test_set_masked_{MASK_MODE}_{MASK_RULE}_{mask_rate}")
             
     with open(f"{exp_eval_directory}/faithfulness_{MASK_RULE}_{MASK_MODE}_ceil{float(MASK_CEIL)*100}_step{float(MASK_STEP)*100}.pkl", 'wb') as f:
         pkl.dump(performances, f)

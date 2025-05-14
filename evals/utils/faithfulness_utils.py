@@ -72,7 +72,7 @@ def test_model(model, model_type, device, classes, exp_metadata, mask_rate, mask
     
     dl = Eval_Test_DataLoader(model_type, test_set_dir, classes, 1, crop_size, 2, mean_, std_)
     
-    logger.info(f"Test Accuracy Evaluation for '{mask_mode}' Masking, {mask_rule} Rule and '{mask_rate}' Mask Rate")
+    logger.info(f"Test Accuracy Evaluation for '{mask_mode}' Masking, '{mask_rule}' Rule and Mask Rate '{mask_rate}'")
     _, labels, preds, _, idx_to_c = process_test_set(dl, device, model)
     label_class_names = [idx_to_c[id_] for id_ in labels]
     pred_class_names = [idx_to_c[id_] for id_ in preds]
@@ -119,6 +119,8 @@ def produce_faithfulness_comparison_plot(exp_eval_directory, mask_ceil, mask_ste
     
     plt.xlabel("Mask Rate")
     plt.ylabel("Test Accuracy")
+    plt.xticks(np.arange(0.0, mask_ceil+mask_step, 0.05))
+    plt.yticks(np.arange(0.0, 1.01, 0.1))
     plt.legend()
     plt.grid(True)
 
