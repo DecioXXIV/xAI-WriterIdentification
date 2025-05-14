@@ -23,7 +23,7 @@ def get_args():
     parser.add_argument("-lr", type=float, required=True)
     parser.add_argument("-scheduler", type=str, default=None, choices=SCHEDULERS)
     parser.add_argument("-early_stopping", type=str2bool, default=True)
-    parser.add_argument("-train_replicas", type=int, required=True)
+    parser.add_argument("-train_replicas", type=int, default=1)
     parser.add_argument("-random_seed", type=int, default=None)
     parser.add_argument("-epochs", type=int, default=50)
     parser.add_argument("-ft_mode", type=str, default="frozen", choices=FT_MODES)
